@@ -1,0 +1,162 @@
+basePath: /v1alpha1
+definitions:
+  kv.GetResponse:
+    properties:
+      key:
+        type: string
+      value: {}
+    type: object
+  kv.KvError:
+    properties:
+      error:
+        type: string
+      key:
+        type: string
+    type: object
+  kv.PutResponse:
+    properties:
+      key:
+        type: string
+      timestamp:
+        type: string
+      value: {}
+    type: object
+  status.StatusResponse:
+    properties:
+      error:
+        type: string
+      hostname:
+        type: string
+      running:
+        type: boolean
+      version:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact:
+    name: Peter Polacik
+  description: API to use DataBuddy data storage system
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  title: DataBuddy
+  version: "1.0"
+paths:
+  /item/{key}:
+    get:
+      consumes:
+      - application/json
+      description: Get value stored at key
+      parameters:
+      - description: Item key
+        in: path
+        name: key
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/kv.GetResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/kv.KvError'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/kv.KvError'
+      summary: Get value stored at key
+      tags:
+      - kv
+    post:
+      consumes:
+      - application/json
+      - text/plain
+      description: Store value for a key
+      parameters:
+      - description: Item key
+        in: path
+        name: key
+        required: true
+        type: string
+      - description: Value to store
+        in: body
+        name: value
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/kv.PutResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/kv.KvError'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/kv.KvError'
+      summary: Store value for a key
+      tags:
+      - kv
+    put:
+      consumes:
+      - application/json
+      - text/plain
+      description: Store value for a key
+      parameters:
+      - description: Item key
+        in: path
+        name: key
+        required: true
+        type: string
+      - description: Value to store
+        in: body
+        name: value
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/kv.PutResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/kv.KvError'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/kv.KvError'
+      summary: Store value for a key
+      tags:
+      - kv
+  /status:
+    get:
+      description: Get status of service, including hostname and version
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/status.StatusResponse'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/status.StatusResponse'
+      summary: Get status of service
+      tags:
+      - status
+swagger: "2.0"
