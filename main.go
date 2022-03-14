@@ -18,7 +18,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"runtime/debug"
 
@@ -31,9 +30,9 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/monitor"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/fiber/v2/middleware/requestid"
-	"github.com/pepol/databuddy/api/v1alpha1/kv"
-	"github.com/pepol/databuddy/api/v1alpha1/status"
+	api "github.com/pepol/databuddy/api/v1alpha2"
 	_ "github.com/pepol/databuddy/docs"
+	"github.com/pepol/databuddy/internal/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/otel"
@@ -108,7 +107,7 @@ func serve(cmd *cobra.Command, args []string) {
 	tp := initTracer()
 	defer func() {
 		if err := tp.Shutdown(context.Background()); err != nil {
-			log.Printf("Error shutting down tracer provider: %v", err)
+			log.Error("error shutting down tracer provider", err)
 		}
 	}()
 
@@ -117,6 +116,7 @@ func serve(cmd *cobra.Command, args []string) {
 	prometheus := fiberprometheus.New("databuddy")
 	prometheus.RegisterAt(app, "/_internal/metrics")
 
+	app.Use("/", prometheus.Middleware)
 	app.Use(otelfiber.Middleware("databuddy"))
 	app.Use(recover.New())
 	app.Use(requestid.New())
@@ -127,22 +127,17 @@ func serve(cmd *cobra.Command, args []string) {
 	app.Get("/swagger/*", swagger.HandlerDefault)
 
 	// API definition.
-	v1alpha1 := app.Group("/v1alpha1")
+	v1alpha2 := app.Group("/v1alpha2")
 
-	// Status routes
-	v1alpha1.Use("/status", prometheus.Middleware)
-	v1alpha1.Get("/status", status.GetStatus)
+	v1alpha2.Use("/", prometheus.Middleware)
 
-	// Key-value routes
-	kvController := kv.NewItemController()
+	// Namespace controller.
+	nc := api.NamespaceController{}
 
-	v1alpha1.Use("/item", prometheus.Middleware)
-	v1alpha1.Get("/item/:key", kvController.GetItem)
-	v1alpha1.Post("/item/:key", kvController.PutItem)
-	v1alpha1.Put("/item/:key", kvController.PutItem)
+	nc.Route(v1alpha2)
 
 	if err := app.Listen(":8080"); err != nil {
-		log.Printf("error listening: %v", err)
+		log.Error("error listening", err)
 	}
 }
 

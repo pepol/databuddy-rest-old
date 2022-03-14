@@ -1,35 +1,13 @@
 basePath: /v1alpha1
 definitions:
-  kv.GetResponse:
+  v1alpha2.Namespace:
     properties:
-      key:
+      name:
         type: string
-      value: {}
     type: object
-  kv.KvError:
+  v1alpha2.RequestError:
     properties:
       error:
-        type: string
-      key:
-        type: string
-    type: object
-  kv.PutResponse:
-    properties:
-      key:
-        type: string
-      timestamp:
-        type: string
-      value: {}
-    type: object
-  status.StatusResponse:
-    properties:
-      error:
-        type: string
-      hostname:
-        type: string
-      running:
-        type: boolean
-      version:
         type: string
     type: object
 host: localhost:8080
@@ -43,15 +21,45 @@ info:
   title: DataBuddy
   version: "1.0"
 paths:
-  /item/{key}:
+  /:
     get:
       consumes:
       - application/json
-      description: Get value stored at key
+      description: |-
+        Retrieve a list of all namespaces in DataBuddy system.
+        If RBAC is enabled, the list returned contains only namespaces
+        visible to the authenticated user.
+        Optional query parameter "prefix" can be provided to return
+        only namespaces with the given prefix.
       parameters:
-      - description: Item key
+      - default: '""'
+        description: Prefix for namespace names
+        in: query
+        name: prefix
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/v1alpha2.Namespace'
+            type: array
+      summary: List accessible namespaces
+      tags:
+      - namespace
+  /{namespace}:
+    delete:
+      consumes:
+      - application/json
+      description: |-
+        Delete provided namespace.
+        This method also deletes all collections that are part of the namespace.
+      parameters:
+      - description: Name of the namespace
         in: path
-        name: key
+        name: namespace
         required: true
         type: string
       produces:
@@ -60,103 +68,73 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/kv.GetResponse'
+            $ref: '#/definitions/v1alpha2.Namespace'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/kv.KvError'
-        "503":
-          description: Service Unavailable
-          schema:
-            $ref: '#/definitions/kv.KvError'
-      summary: Get value stored at key
+            $ref: '#/definitions/v1alpha2.RequestError'
       tags:
-      - kv
-    post:
+      - namespace
+    get:
       consumes:
       - application/json
-      - text/plain
-      description: Store value for a key
+      description: Retrieve detailed information about namespace by name.
       parameters:
-      - description: Item key
+      - description: Name of the namespace to retrieve
         in: path
-        name: key
+        name: namespace
         required: true
         type: string
-      - description: Value to store
-        in: body
-        name: value
-        required: true
-        schema:
-          type: object
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/kv.PutResponse'
+            $ref: '#/definitions/v1alpha2.Namespace'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/kv.KvError'
-        "503":
-          description: Service Unavailable
+            $ref: '#/definitions/v1alpha2.RequestError'
+        "404":
+          description: Not Found
           schema:
-            $ref: '#/definitions/kv.KvError'
-      summary: Store value for a key
+            $ref: '#/definitions/v1alpha2.RequestError'
+      summary: Get namespace by name
       tags:
-      - kv
+      - namespace
     put:
       consumes:
       - application/json
-      - text/plain
-      description: Store value for a key
+      description: |-
+        Modify namespace with "name" (path parameter) to match
+        the provided namespace object. Create namespace if does not exist.
+        The name provided in path and name in request body (if set) MUST
+        be the same.
       parameters:
-      - description: Item key
+      - description: Name of the namespace
         in: path
-        name: key
+        name: namespace
         required: true
         type: string
-      - description: Value to store
+      - description: The namespace object
         in: body
-        name: value
+        name: spec
         required: true
         schema:
-          type: object
+          $ref: '#/definitions/v1alpha2.Namespace'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/kv.PutResponse'
+            $ref: '#/definitions/v1alpha2.Namespace'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/kv.KvError'
-        "503":
-          description: Service Unavailable
-          schema:
-            $ref: '#/definitions/kv.KvError'
-      summary: Store value for a key
+            $ref: '#/definitions/v1alpha2.RequestError'
+      summary: Set namespace
       tags:
-      - kv
-  /status:
-    get:
-      description: Get status of service, including hostname and version
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/status.StatusResponse'
-        "503":
-          description: Service Unavailable
-          schema:
-            $ref: '#/definitions/status.StatusResponse'
-      summary: Get status of service
-      tags:
-      - status
+      - namespace
 swagger: "2.0"

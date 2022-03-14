@@ -22,9 +22,9 @@ const docTemplate_swagger = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/item/{key}": {
+        "/": {
             "get": {
-                "description": "Get value stored at key",
+                "description": "Retrieve a list of all namespaces in DataBuddy system.\nIf RBAC is enabled, the list returned contains only namespaces\nvisible to the authenticated user.\nOptional query parameter \"prefix\" can be provided to return\nonly namespaces with the given prefix.",
                 "consumes": [
                     "application/json"
                 ],
@@ -32,165 +32,150 @@ const docTemplate_swagger = `{
                     "application/json"
                 ],
                 "tags": [
-                    "kv"
+                    "namespace"
                 ],
-                "summary": "Get value stored at key",
+                "summary": "List accessible namespaces",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Item key",
-                        "name": "key",
-                        "in": "path",
-                        "required": true
+                        "default": "\"\"",
+                        "description": "Prefix for namespace names",
+                        "name": "prefix",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/kv.GetResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/kv.KvError"
-                        }
-                    },
-                    "503": {
-                        "description": "Service Unavailable",
-                        "schema": {
-                            "$ref": "#/definitions/kv.KvError"
-                        }
-                    }
-                }
-            },
-            "put": {
-                "description": "Store value for a key",
-                "consumes": [
-                    "application/json",
-                    "text/plain"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "kv"
-                ],
-                "summary": "Store value for a key",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Item key",
-                        "name": "key",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Value to store",
-                        "name": "value",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "type": "object"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/kv.PutResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/kv.KvError"
-                        }
-                    },
-                    "503": {
-                        "description": "Service Unavailable",
-                        "schema": {
-                            "$ref": "#/definitions/kv.KvError"
-                        }
-                    }
-                }
-            },
-            "post": {
-                "description": "Store value for a key",
-                "consumes": [
-                    "application/json",
-                    "text/plain"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "kv"
-                ],
-                "summary": "Store value for a key",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Item key",
-                        "name": "key",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Value to store",
-                        "name": "value",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "type": "object"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/kv.PutResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/kv.KvError"
-                        }
-                    },
-                    "503": {
-                        "description": "Service Unavailable",
-                        "schema": {
-                            "$ref": "#/definitions/kv.KvError"
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/v1alpha2.Namespace"
+                            }
                         }
                     }
                 }
             }
         },
-        "/status": {
+        "/{namespace}": {
             "get": {
-                "description": "Get status of service, including hostname and version",
+                "description": "Retrieve detailed information about namespace by name.",
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "status"
+                    "namespace"
                 ],
-                "summary": "Get status of service",
+                "summary": "Get namespace by name",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Name of the namespace to retrieve",
+                        "name": "namespace",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/status.StatusResponse"
+                            "$ref": "#/definitions/v1alpha2.Namespace"
                         }
                     },
-                    "503": {
-                        "description": "Service Unavailable",
+                    "400": {
+                        "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/status.StatusResponse"
+                            "$ref": "#/definitions/v1alpha2.RequestError"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/v1alpha2.RequestError"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Modify namespace with \"name\" (path parameter) to match\nthe provided namespace object. Create namespace if does not exist.\nThe name provided in path and name in request body (if set) MUST\nbe the same.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "namespace"
+                ],
+                "summary": "Set namespace",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Name of the namespace",
+                        "name": "namespace",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "The namespace object",
+                        "name": "spec",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/v1alpha2.Namespace"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/v1alpha2.Namespace"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/v1alpha2.RequestError"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete provided namespace.\nThis method also deletes all collections that are part of the namespace.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "namespace"
+                ],
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Name of the namespace",
+                        "name": "namespace",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/v1alpha2.Namespace"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/v1alpha2.RequestError"
                         }
                     }
                 }
@@ -198,51 +183,18 @@ const docTemplate_swagger = `{
         }
     },
     "definitions": {
-        "kv.GetResponse": {
+        "v1alpha2.Namespace": {
             "type": "object",
             "properties": {
-                "key": {
-                    "type": "string"
-                },
-                "value": {}
-            }
-        },
-        "kv.KvError": {
-            "type": "object",
-            "properties": {
-                "error": {
-                    "type": "string"
-                },
-                "key": {
+                "name": {
                     "type": "string"
                 }
             }
         },
-        "kv.PutResponse": {
-            "type": "object",
-            "properties": {
-                "key": {
-                    "type": "string"
-                },
-                "timestamp": {
-                    "type": "string"
-                },
-                "value": {}
-            }
-        },
-        "status.StatusResponse": {
+        "v1alpha2.RequestError": {
             "type": "object",
             "properties": {
                 "error": {
-                    "type": "string"
-                },
-                "hostname": {
-                    "type": "string"
-                },
-                "running": {
-                    "type": "boolean"
-                },
-                "version": {
                     "type": "string"
                 }
             }
