@@ -131,10 +131,10 @@ func serve(cmd *cobra.Command, args []string) {
 
 	v1alpha2.Use("/", prometheus.Middleware)
 
-	// Namespace controller.
-	nc := api.NamespaceController{}
+	// API controller.
+	apiCtl := api.Controller{}
 
-	nc.Route(v1alpha2)
+	apiCtl.Route(v1alpha2)
 
 	if err := app.Listen(":8080"); err != nil {
 		log.Error("error listening", err)

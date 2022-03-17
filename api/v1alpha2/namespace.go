@@ -6,20 +6,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-// NamespaceController is the API handler for namespace operations.
-type NamespaceController struct {
-	Service NamespaceService
-}
-
-// Route sets up routing on given Fiber instance.
-func (nc *NamespaceController) Route(router fiber.Router) {
-	router.Get("/", nc.listNS)
-
-	router.Get("/:namespace", nc.getNS)
-	router.Put("/:namespace", nc.setNS)
-	router.Delete("/:namespace", nc.deleteNS)
-}
-
 // @Summary List accessible namespaces
 // @Tags namespace
 // @Accept json
@@ -32,9 +18,9 @@ func (nc *NamespaceController) Route(router fiber.Router) {
 // @Description visible to the authenticated user.
 // @Description Optional query parameter "prefix" can be provided to return
 // @Description only namespaces with the given prefix.
-func (nc *NamespaceController) listNS(c *fiber.Ctx) error {
+func (ctl *Controller) listNS(c *fiber.Ctx) error {
 	prefix := c.Query("prefix", "")
-	namespaces, err := nc.Service.List(prefix)
+	namespaces, err := ctl.NsSvc.List(prefix)
 	if err != nil {
 		return err
 	}
@@ -51,12 +37,17 @@ func (nc *NamespaceController) listNS(c *fiber.Ctx) error {
 // @Failure 404 {object} RequestError
 // @Router /{namespace} [get]
 // @Description Retrieve detailed information about namespace by name.
-func (nc *NamespaceController) getNS(c *fiber.Ctx) error {
+func (ctl *Controller) getNS(c *fiber.Ctx) error {
 	name := c.Params("namespace")
 
-	ns, err := nc.Service.Get(name)
+	ns, err := ctl.NsSvc.Get(name)
 	switch err.(type) {
 	case nil:
+		colls, errl := ctl.CollSvc.List(name, "")
+		if errl != nil {
+			return errl
+		}
+		ns.Status.Collections = colls
 		return c.JSON(ns)
 	case *ErrorNotFound:
 		return c.Status(fiber.StatusNotFound).JSON(RequestError{
@@ -80,7 +71,7 @@ func (nc *NamespaceController) getNS(c *fiber.Ctx) error {
 // @Description the provided namespace object. Create namespace if does not exist.
 // @Description The name provided in path and name in request body (if set) MUST
 // @Description be the same.
-func (nc *NamespaceController) setNS(c *fiber.Ctx) error {
+func (ctl *Controller) setNS(c *fiber.Ctx) error {
 	namespace := new(Namespace)
 
 	if err := c.BodyParser(namespace); err != nil {
@@ -88,6 +79,7 @@ func (nc *NamespaceController) setNS(c *fiber.Ctx) error {
 			Error: err.Error(),
 		})
 	}
+	namespace.Status.Collections = []Collection{}
 
 	if name := c.Params("namespace"); name != namespace.Name {
 		return c.Status(fiber.StatusBadRequest).JSON(RequestError{
@@ -95,7 +87,7 @@ func (nc *NamespaceController) setNS(c *fiber.Ctx) error {
 		})
 	}
 
-	ns, err := nc.Service.Set(namespace)
+	ns, err := ctl.NsSvc.Set(namespace)
 	if err != nil {
 		return err
 	}
@@ -113,12 +105,16 @@ func (nc *NamespaceController) setNS(c *fiber.Ctx) error {
 // @Router /{namespace} [delete]
 // @Description Delete provided namespace.
 // @Description This method also deletes all collections that are part of the namespace.
-func (nc *NamespaceController) deleteNS(c *fiber.Ctx) error {
-	name := c.Params("name")
+func (ctl *Controller) deleteNS(c *fiber.Ctx) error {
+	name := c.Params("namespace")
 
-	ns, err := nc.Service.Delete(name)
+	ns, err := ctl.NsSvc.Delete(name)
 	switch err.(type) {
 	case nil:
+		err = ctl.deleteAllCollections(name, ns.Status.Collections)
+		if err != nil {
+			return err
+		}
 		return c.JSON(ns)
 	case *ErrorNotFound:
 		return c.Status(fiber.StatusNotFound).JSON(RequestError{
