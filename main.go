@@ -19,10 +19,8 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"runtime/debug"
 
 	"github.com/ansrivas/fiberprometheus/v2"
-	swagger "github.com/arsmn/fiber-swagger/v2"
 	"github.com/gofiber/contrib/otelfiber"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/etag"
@@ -30,17 +28,10 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/monitor"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/fiber/v2/middleware/requestid"
-	api "github.com/pepol/databuddy/api/v1alpha2"
-	_ "github.com/pepol/databuddy/docs"
 	"github.com/pepol/databuddy/internal/log"
+	"github.com/pepol/databuddy/internal/opentelemetry"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"go.opentelemetry.io/otel"
-	stdout "go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
-	"go.opentelemetry.io/otel/propagation"
-	"go.opentelemetry.io/otel/sdk/resource"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.7.0"
 )
 
 var rootCmd = &cobra.Command{
@@ -91,20 +82,9 @@ func init() {
 	// migrateCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
 
-// @title        DataBuddy
-// @version      1.0
-// @description  API to use DataBuddy data storage system
-
-// @contact.name  Peter Polacik
-
-// @license.name  Apache 2.0
-// @license.url   http://www.apache.org/licenses/LICENSE-2.0.html
-
-// @host      localhost:8080
-// @BasePath  /v1alpha1
 // Serve HTTP requests.
 func serve(cmd *cobra.Command, args []string) {
-	tp := initTracer()
+	tp := opentelemetry.Tracer()
 	defer func() {
 		if err := tp.Shutdown(context.Background()); err != nil {
 			log.Error("error shutting down tracer provider", err)
@@ -124,48 +104,15 @@ func serve(cmd *cobra.Command, args []string) {
 	app.Use(etag.New())
 
 	app.Get("/_internal/dashboard", monitor.New())
-	app.Get("/swagger/*", swagger.HandlerDefault)
 
 	// API definition.
-	v1alpha2 := app.Group("/v1alpha2")
+	v1 := app.Group("/v1")
 
-	v1alpha2.Use("/", prometheus.Middleware)
-
-	// API controller.
-	apiCtl := api.Controller{}
-
-	apiCtl.Route(v1alpha2)
+	v1.Use("/", prometheus.Middleware)
 
 	if err := app.Listen(":8080"); err != nil {
 		log.Error("error listening", err)
 	}
-}
-
-func initTracer() *sdktrace.TracerProvider {
-	exporter, err := stdout.New()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	info, ok := debug.ReadBuildInfo()
-	if !ok {
-		log.Fatal("cannot retrieve build info")
-	}
-
-	tp := sdktrace.NewTracerProvider(
-		sdktrace.WithSampler(sdktrace.AlwaysSample()),
-		sdktrace.WithBatcher(exporter),
-		sdktrace.WithResource(
-			resource.NewWithAttributes(
-				semconv.SchemaURL,
-				semconv.ServiceNameKey.String("databuddy"),
-				semconv.ServiceVersionKey.String(info.Main.Version),
-			),
-		),
-	)
-	otel.SetTracerProvider(tp)
-	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
-	return tp
 }
 
 func main() {
