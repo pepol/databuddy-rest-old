@@ -10,7 +10,7 @@ require (
 	github.com/rogpeppe/go-internal v1.8.0 // indirect
 	github.com/spf13/cobra v1.3.0
 	github.com/spf13/viper v1.10.1
-	go.opentelemetry.io/otel v1.4.1
+	go.opentelemetry.io/otel v1.5.0
 	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.4.1
 	go.opentelemetry.io/otel/sdk v1.4.1
 	golang.org/x/sys v0.0.0-20220307203707-22a9840ba4d7 // indirect
