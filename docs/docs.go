@@ -385,6 +385,108 @@ const docTemplate_swagger = `{
                     }
                 }
             }
+        },
+        "/status/cluster/leader": {
+            "get": {
+                "description": "Get cluster's Raft leader information.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "status"
+                ],
+                "summary": "Get Raft leader",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "default": "local",
+                        "description": "Datacenter to query, defaults to local datacenter",
+                        "name": "dc",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "Requested datacenter doesn't exist",
+                        "schema": {
+                            "$ref": "#/definitions/v1alpha3.RequestError"
+                        }
+                    }
+                }
+            }
+        },
+        "/status/cluster/peers": {
+            "get": {
+                "description": "Get the peers for given cluster.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "status"
+                ],
+                "summary": "Get cluster peers",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "default": "local",
+                        "description": "Datacenter to query, defaults to local datacenter",
+                        "name": "dc",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Requested datacenter doesn't exist",
+                        "schema": {
+                            "$ref": "#/definitions/v1alpha3.RequestError"
+                        }
+                    }
+                }
+            }
+        },
+        "/status/node": {
+            "get": {
+                "description": "Get current node information and status.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "status"
+                ],
+                "summary": "Get node status",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/v1alpha3.NodeInfo"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -458,6 +560,140 @@ const docTemplate_swagger = `{
                 }
             }
         },
+        "v1alpha3.NodeCPUInfo": {
+            "type": "object",
+            "properties": {
+                "cacheSize": {
+                    "type": "integer"
+                },
+                "cores": {
+                    "type": "integer"
+                },
+                "cpuindex": {
+                    "type": "integer"
+                },
+                "family": {
+                    "type": "string"
+                },
+                "flags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "mhz": {
+                    "type": "number"
+                },
+                "microcode": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "modelName": {
+                    "type": "string"
+                },
+                "vendorID": {
+                    "type": "string"
+                }
+            }
+        },
+        "v1alpha3.NodeDiskInfo": {
+            "type": "object",
+            "properties": {
+                "free": {
+                    "type": "integer"
+                },
+                "fstype": {
+                    "type": "string"
+                },
+                "inodesFree": {
+                    "type": "integer"
+                },
+                "inodesTotal": {
+                    "type": "integer"
+                },
+                "inodesUsed": {
+                    "type": "integer"
+                },
+                "inodesUsedPercent": {
+                    "type": "number"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "used": {
+                    "type": "integer"
+                },
+                "usedPercent": {
+                    "type": "number"
+                }
+            }
+        },
+        "v1alpha3.NodeInfo": {
+            "type": "object",
+            "properties": {
+                "annotations": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "cluster": {
+                    "type": "string"
+                },
+                "cpu": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/v1alpha3.NodeCPUInfo"
+                    }
+                },
+                "disk": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/v1alpha3.NodeDiskInfo"
+                    }
+                },
+                "hostname": {
+                    "type": "string"
+                },
+                "labels": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "memory": {
+                    "$ref": "#/definitions/v1alpha3.NodeMemoryInfo"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "v1alpha3.NodeMemoryInfo": {
+            "type": "object",
+            "properties": {
+                "available": {
+                    "type": "integer"
+                },
+                "free": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "used": {
+                    "type": "integer"
+                },
+                "usedPercent": {
+                    "type": "number"
+                }
+            }
+        },
         "v1alpha3.RequestError": {
             "type": "object",
             "properties": {
@@ -471,9 +707,9 @@ const docTemplate_swagger = `{
 
 // SwaggerInfo_swagger holds exported Swagger Info so clients can modify it
 var SwaggerInfo_swagger = &swag.Spec{
-	Version:          "1.0",
+	Version:          "1.0.0-alpha3",
 	Host:             "localhost:8080",
-	BasePath:         "/v1alpha2",
+	BasePath:         "/v1alpha3",
 	Schemes:          []string{},
 	Title:            "DataBuddy",
 	Description:      "API to use DataBuddy data storage system",

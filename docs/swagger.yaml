@@ -1,4 +1,4 @@
-basePath: /v1alpha2
+basePath: /v1alpha3
 definitions:
   v1alpha3.KVItem:
     properties:
@@ -46,6 +46,94 @@ definitions:
       updateIndex:
         type: string
     type: object
+  v1alpha3.NodeCPUInfo:
+    properties:
+      cacheSize:
+        type: integer
+      cores:
+        type: integer
+      cpuindex:
+        type: integer
+      family:
+        type: string
+      flags:
+        items:
+          type: string
+        type: array
+      mhz:
+        type: number
+      microcode:
+        type: string
+      model:
+        type: string
+      modelName:
+        type: string
+      vendorID:
+        type: string
+    type: object
+  v1alpha3.NodeDiskInfo:
+    properties:
+      free:
+        type: integer
+      fstype:
+        type: string
+      inodesFree:
+        type: integer
+      inodesTotal:
+        type: integer
+      inodesUsed:
+        type: integer
+      inodesUsedPercent:
+        type: number
+      path:
+        type: string
+      total:
+        type: integer
+      used:
+        type: integer
+      usedPercent:
+        type: number
+    type: object
+  v1alpha3.NodeInfo:
+    properties:
+      annotations:
+        additionalProperties:
+          type: string
+        type: object
+      cluster:
+        type: string
+      cpu:
+        items:
+          $ref: '#/definitions/v1alpha3.NodeCPUInfo'
+        type: array
+      disk:
+        items:
+          $ref: '#/definitions/v1alpha3.NodeDiskInfo'
+        type: array
+      hostname:
+        type: string
+      labels:
+        items:
+          type: string
+        type: array
+      memory:
+        $ref: '#/definitions/v1alpha3.NodeMemoryInfo'
+      version:
+        type: string
+    type: object
+  v1alpha3.NodeMemoryInfo:
+    properties:
+      available:
+        type: integer
+      free:
+        type: integer
+      total:
+        type: integer
+      used:
+        type: integer
+      usedPercent:
+        type: number
+    type: object
   v1alpha3.RequestError:
     properties:
       error:
@@ -60,7 +148,7 @@ info:
     name: Apache 2.0
     url: http://www.apache.org/licenses/LICENSE-2.0.html
   title: DataBuddy
-  version: "1.0"
+  version: 1.0.0-alpha3
 paths:
   /kv:
     get:
@@ -318,4 +406,71 @@ paths:
       summary: Create/update namespace
       tags:
       - namespace
+  /status/cluster/leader:
+    get:
+      consumes:
+      - application/json
+      description: Get cluster's Raft leader information.
+      parameters:
+      - default: local
+        description: Datacenter to query, defaults to local datacenter
+        in: query
+        name: dc
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+        "404":
+          description: Requested datacenter doesn't exist
+          schema:
+            $ref: '#/definitions/v1alpha3.RequestError'
+      summary: Get Raft leader
+      tags:
+      - status
+  /status/cluster/peers:
+    get:
+      consumes:
+      - application/json
+      description: Get the peers for given cluster.
+      parameters:
+      - default: local
+        description: Datacenter to query, defaults to local datacenter
+        in: query
+        name: dc
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              type: string
+            type: array
+        "404":
+          description: Requested datacenter doesn't exist
+          schema:
+            $ref: '#/definitions/v1alpha3.RequestError'
+      summary: Get cluster peers
+      tags:
+      - status
+  /status/node:
+    get:
+      consumes:
+      - application/json
+      description: Get current node information and status.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/v1alpha3.NodeInfo'
+      summary: Get node status
+      tags:
+      - status
 swagger: "2.0"

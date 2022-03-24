@@ -91,8 +91,9 @@ func init() {
 	// migrateCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
 
+//go:generate swag init
 // @title        DataBuddy
-// @version      1.0
+// @version      1.0.0-alpha3
 // @description  API to use DataBuddy data storage system
 
 // @contact.name  Peter Polacik
@@ -101,7 +102,7 @@ func init() {
 // @license.url   http://www.apache.org/licenses/LICENSE-2.0.html
 
 // @host      localhost:8080
-// @BasePath  /v1alpha2
+// @BasePath  /v1alpha3
 // Serve HTTP requests.
 func serve(cmd *cobra.Command, args []string) {
 	tp := initTracer()
@@ -132,7 +133,7 @@ func serve(cmd *cobra.Command, args []string) {
 	v1alpha3.Use("/", prometheus.Middleware)
 
 	// API controller.
-	apiCtl := api.NewController(nil)
+	apiCtl := api.NewController(&api.Config{})
 
 	apiCtl.Route(v1alpha3)
 
