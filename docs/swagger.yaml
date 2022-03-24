@@ -1,11 +1,34 @@
-basePath: /v1alpha1
+basePath: /v1alpha2
 definitions:
-  v1alpha2.Namespace:
+  v1alpha3.NamespaceSpec:
     properties:
+      description:
+        type: string
+      labels:
+        additionalProperties:
+          type: string
+        type: object
       name:
         type: string
     type: object
-  v1alpha2.RequestError:
+  v1alpha3.NamespaceStatus:
+    properties:
+      createIndex:
+        type: string
+      deleteIndex:
+        type: string
+      description:
+        type: string
+      labels:
+        additionalProperties:
+          type: string
+        type: object
+      name:
+        type: string
+      updateIndex:
+        type: string
+    type: object
+  v1alpha3.RequestError:
     properties:
       error:
         type: string
@@ -21,19 +44,14 @@ info:
   title: DataBuddy
   version: "1.0"
 paths:
-  /:
+  /namespace:
     get:
       consumes:
       - application/json
-      description: |-
-        Retrieve a list of all namespaces in DataBuddy system.
-        If RBAC is enabled, the list returned contains only namespaces
-        visible to the authenticated user.
-        Optional query parameter "prefix" can be provided to return
-        only namespaces with the given prefix.
+      description: List all namespaces.
       parameters:
-      - default: '""'
-        description: Prefix for namespace names
+      - default: ""
+        description: Namespace name prefix
         in: query
         name: prefix
         type: string
@@ -44,22 +62,27 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/v1alpha2.Namespace'
+              type: string
             type: array
-      summary: List accessible namespaces
+      summary: List all namespaces
       tags:
       - namespace
-  /{namespace}:
+  /namespace/{name}:
     delete:
       consumes:
       - application/json
       description: |-
-        Delete provided namespace.
-        This method also deletes all collections that are part of the namespace.
+        Mark given namespace as deleted.
+        All the objects stored within the namespace are scheduled for
+        deletion asynchronously. While the namespace is in the process
+        of being deleted, GET-ing it will return the object with status
+        attribute "DeleteIndex" set to index of the delete operation.
+        Once all the contents of the namespace are deleted, GET on
+        the namespace will return HTTP 404.
       parameters:
-      - description: Name of the namespace
+      - description: Namespace name
         in: path
-        name: namespace
+        name: name
         required: true
         type: string
       produces:
@@ -68,21 +91,22 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/v1alpha2.Namespace'
+            $ref: '#/definitions/v1alpha3.NamespaceStatus'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/v1alpha2.RequestError'
+            $ref: '#/definitions/v1alpha3.RequestError'
+      summary: Delete namespace
       tags:
       - namespace
     get:
       consumes:
       - application/json
-      description: Retrieve detailed information about namespace by name.
+      description: Get namespace by name.
       parameters:
-      - description: Name of the namespace to retrieve
+      - description: Namespace name
         in: path
-        name: namespace
+        name: name
         required: true
         type: string
       produces:
@@ -91,50 +115,45 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/v1alpha2.Namespace'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/v1alpha2.RequestError'
+            $ref: '#/definitions/v1alpha3.NamespaceStatus'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/v1alpha2.RequestError'
-      summary: Get namespace by name
+            $ref: '#/definitions/v1alpha3.RequestError'
+      summary: Get namespace
       tags:
       - namespace
     put:
       consumes:
       - application/json
       description: |-
-        Modify namespace with "name" (path parameter) to match
-        the provided namespace object. Create namespace if does not exist.
-        The name provided in path and name in request body (if set) MUST
-        be the same.
+        Create the namespace with given name and spec.
+        Update fields of given namespace based on body if it already
+        exists.
       parameters:
-      - description: Name of the namespace
+      - description: Namespace name
         in: path
-        name: namespace
+        name: name
         required: true
         type: string
-      - description: The namespace object
+      - description: Namespace fiels to update
         in: body
         name: spec
         required: true
         schema:
-          $ref: '#/definitions/v1alpha2.Namespace'
+          $ref: '#/definitions/v1alpha3.NamespaceSpec'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/v1alpha2.Namespace'
+            $ref: '#/definitions/v1alpha3.NamespaceStatus'
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/v1alpha2.RequestError'
-      summary: Set namespace
+            $ref: '#/definitions/v1alpha3.RequestError'
+      summary: Create/update namespace
       tags:
       - namespace
 swagger: "2.0"

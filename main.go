@@ -30,7 +30,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/monitor"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/fiber/v2/middleware/requestid"
-	api "github.com/pepol/databuddy/api/v1alpha2"
+	api "github.com/pepol/databuddy/api/v1alpha3"
 	_ "github.com/pepol/databuddy/docs"
 	"github.com/pepol/databuddy/internal/log"
 	"github.com/spf13/cobra"
@@ -101,7 +101,7 @@ func init() {
 // @license.url   http://www.apache.org/licenses/LICENSE-2.0.html
 
 // @host      localhost:8080
-// @BasePath  /v1alpha1
+// @BasePath  /v1alpha2
 // Serve HTTP requests.
 func serve(cmd *cobra.Command, args []string) {
 	tp := initTracer()
@@ -127,14 +127,14 @@ func serve(cmd *cobra.Command, args []string) {
 	app.Get("/swagger/*", swagger.HandlerDefault)
 
 	// API definition.
-	v1alpha2 := app.Group("/v1alpha2")
+	v1alpha3 := app.Group("/v1alpha3")
 
-	v1alpha2.Use("/", prometheus.Middleware)
+	v1alpha3.Use("/", prometheus.Middleware)
 
 	// API controller.
-	apiCtl := api.Controller{}
+	apiCtl := api.NewController(nil)
 
-	apiCtl.Route(v1alpha2)
+	apiCtl.Route(v1alpha3)
 
 	if err := app.Listen(":8080"); err != nil {
 		log.Error("error listening", err)

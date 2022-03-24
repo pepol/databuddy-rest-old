@@ -22,9 +22,9 @@ const docTemplate_swagger = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/": {
+        "/namespace": {
             "get": {
-                "description": "Retrieve a list of all namespaces in DataBuddy system.\nIf RBAC is enabled, the list returned contains only namespaces\nvisible to the authenticated user.\nOptional query parameter \"prefix\" can be provided to return\nonly namespaces with the given prefix.",
+                "description": "List all namespaces.",
                 "consumes": [
                     "application/json"
                 ],
@@ -34,12 +34,12 @@ const docTemplate_swagger = `{
                 "tags": [
                     "namespace"
                 ],
-                "summary": "List accessible namespaces",
+                "summary": "List all namespaces",
                 "parameters": [
                     {
                         "type": "string",
-                        "default": "\"\"",
-                        "description": "Prefix for namespace names",
+                        "default": "",
+                        "description": "Namespace name prefix",
                         "name": "prefix",
                         "in": "query"
                     }
@@ -50,16 +50,16 @@ const docTemplate_swagger = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/v1alpha2.Namespace"
+                                "type": "string"
                             }
                         }
                     }
                 }
             }
         },
-        "/{namespace}": {
+        "/namespace/{name}": {
             "get": {
-                "description": "Retrieve detailed information about namespace by name.",
+                "description": "Get namespace by name.",
                 "consumes": [
                     "application/json"
                 ],
@@ -69,12 +69,12 @@ const docTemplate_swagger = `{
                 "tags": [
                     "namespace"
                 ],
-                "summary": "Get namespace by name",
+                "summary": "Get namespace",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Name of the namespace to retrieve",
-                        "name": "namespace",
+                        "description": "Namespace name",
+                        "name": "name",
                         "in": "path",
                         "required": true
                     }
@@ -83,25 +83,19 @@ const docTemplate_swagger = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/v1alpha2.Namespace"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/v1alpha2.RequestError"
+                            "$ref": "#/definitions/v1alpha3.NamespaceStatus"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/v1alpha2.RequestError"
+                            "$ref": "#/definitions/v1alpha3.RequestError"
                         }
                     }
                 }
             },
             "put": {
-                "description": "Modify namespace with \"name\" (path parameter) to match\nthe provided namespace object. Create namespace if does not exist.\nThe name provided in path and name in request body (if set) MUST\nbe the same.",
+                "description": "Create the namespace with given name and spec.\nUpdate fields of given namespace based on body if it already\nexists.",
                 "consumes": [
                     "application/json"
                 ],
@@ -111,22 +105,22 @@ const docTemplate_swagger = `{
                 "tags": [
                     "namespace"
                 ],
-                "summary": "Set namespace",
+                "summary": "Create/update namespace",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Name of the namespace",
-                        "name": "namespace",
+                        "description": "Namespace name",
+                        "name": "name",
                         "in": "path",
                         "required": true
                     },
                     {
-                        "description": "The namespace object",
+                        "description": "Namespace fiels to update",
                         "name": "spec",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/v1alpha2.Namespace"
+                            "$ref": "#/definitions/v1alpha3.NamespaceSpec"
                         }
                     }
                 ],
@@ -134,19 +128,19 @@ const docTemplate_swagger = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/v1alpha2.Namespace"
+                            "$ref": "#/definitions/v1alpha3.NamespaceStatus"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/v1alpha2.RequestError"
+                            "$ref": "#/definitions/v1alpha3.RequestError"
                         }
                     }
                 }
             },
             "delete": {
-                "description": "Delete provided namespace.\nThis method also deletes all collections that are part of the namespace.",
+                "description": "Mark given namespace as deleted.\nAll the objects stored within the namespace are scheduled for\ndeletion asynchronously. While the namespace is in the process\nof being deleted, GET-ing it will return the object with status\nattribute \"DeleteIndex\" set to index of the delete operation.\nOnce all the contents of the namespace are deleted, GET on\nthe namespace will return HTTP 404.",
                 "consumes": [
                     "application/json"
                 ],
@@ -156,11 +150,12 @@ const docTemplate_swagger = `{
                 "tags": [
                     "namespace"
                 ],
+                "summary": "Delete namespace",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Name of the namespace",
-                        "name": "namespace",
+                        "description": "Namespace name",
+                        "name": "name",
                         "in": "path",
                         "required": true
                     }
@@ -169,13 +164,13 @@ const docTemplate_swagger = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/v1alpha2.Namespace"
+                            "$ref": "#/definitions/v1alpha3.NamespaceStatus"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/v1alpha2.RequestError"
+                            "$ref": "#/definitions/v1alpha3.RequestError"
                         }
                     }
                 }
@@ -183,15 +178,50 @@ const docTemplate_swagger = `{
         }
     },
     "definitions": {
-        "v1alpha2.Namespace": {
+        "v1alpha3.NamespaceSpec": {
             "type": "object",
             "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "labels": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
                 "name": {
                     "type": "string"
                 }
             }
         },
-        "v1alpha2.RequestError": {
+        "v1alpha3.NamespaceStatus": {
+            "type": "object",
+            "properties": {
+                "createIndex": {
+                    "type": "string"
+                },
+                "deleteIndex": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "labels": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "updateIndex": {
+                    "type": "string"
+                }
+            }
+        },
+        "v1alpha3.RequestError": {
             "type": "object",
             "properties": {
                 "error": {
@@ -206,7 +236,7 @@ const docTemplate_swagger = `{
 var SwaggerInfo_swagger = &swag.Spec{
 	Version:          "1.0",
 	Host:             "localhost:8080",
-	BasePath:         "/v1alpha1",
+	BasePath:         "/v1alpha2",
 	Schemes:          []string{},
 	Title:            "DataBuddy",
 	Description:      "API to use DataBuddy data storage system",
