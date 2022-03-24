@@ -22,6 +22,216 @@ const docTemplate_swagger = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/kv": {
+            "get": {
+                "description": "List all keys.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "kv"
+                ],
+                "summary": "List all keys",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "default": "",
+                        "description": "Key prefix",
+                        "name": "prefix",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "default": "default",
+                        "description": "Namespace",
+                        "name": "namespace",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/kv/{key}": {
+            "get": {
+                "description": "Get key value.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "namespace"
+                ],
+                "summary": "Get key",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Key",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "default": "default",
+                        "description": "Namespace",
+                        "name": "namespace",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Return only value",
+                        "name": "raw",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/v1alpha3.KVItem"
+                        }
+                    },
+                    "400": {
+                        "description": "Returned when 'raw' parameter is not parseable as boolean",
+                        "schema": {
+                            "$ref": "#/definitions/v1alpha3.RequestError"
+                        }
+                    },
+                    "404": {
+                        "description": "Returned when either key or namespace doesn't exist",
+                        "schema": {
+                            "$ref": "#/definitions/v1alpha3.RequestError"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Store the provided value under key.\nIf namespace doesn't exist, it gets created.",
+                "consumes": [
+                    "text/plain",
+                    "application/octet-stream"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "kv"
+                ],
+                "summary": "Put key",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Key",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "default": "default",
+                        "description": "Namespace",
+                        "name": "namespace",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 0,
+                        "description": "User-defined metadata",
+                        "name": "flags",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 0,
+                        "description": "Time-To-Live (in seconds), 0 means the item won't expire",
+                        "name": "ttl",
+                        "in": "query"
+                    },
+                    {
+                        "description": "Value to store",
+                        "name": "value",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "boolean"
+                        }
+                    },
+                    "400": {
+                        "description": "Returned when no value is provided",
+                        "schema": {
+                            "$ref": "#/definitions/v1alpha3.RequestError"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete provided key.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "kv"
+                ],
+                "summary": "Delete key",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Key",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "default": "default",
+                        "description": "Namespace",
+                        "name": "namespace",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/v1alpha3.KVItem"
+                        }
+                    },
+                    "404": {
+                        "description": "Returned when either key or namespace doesn't exist",
+                        "schema": {
+                            "$ref": "#/definitions/v1alpha3.RequestError"
+                        }
+                    }
+                }
+            }
+        },
         "/namespace": {
             "get": {
                 "description": "List all namespaces.",
@@ -87,7 +297,7 @@ const docTemplate_swagger = `{
                         }
                     },
                     "404": {
-                        "description": "Not Found",
+                        "description": "Returned when namespace doesn't exist",
                         "schema": {
                             "$ref": "#/definitions/v1alpha3.RequestError"
                         }
@@ -115,7 +325,7 @@ const docTemplate_swagger = `{
                         "required": true
                     },
                     {
-                        "description": "Namespace fiels to update",
+                        "description": "Namespace fields to update",
                         "name": "spec",
                         "in": "body",
                         "required": true,
@@ -132,7 +342,7 @@ const docTemplate_swagger = `{
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "Returned when 'spec' doesn't conform to model",
                         "schema": {
                             "$ref": "#/definitions/v1alpha3.RequestError"
                         }
@@ -168,7 +378,7 @@ const docTemplate_swagger = `{
                         }
                     },
                     "404": {
-                        "description": "Not Found",
+                        "description": "Returned when namespace doesn't exist",
                         "schema": {
                             "$ref": "#/definitions/v1alpha3.RequestError"
                         }
@@ -178,6 +388,33 @@ const docTemplate_swagger = `{
         }
     },
     "definitions": {
+        "v1alpha3.KVItem": {
+            "type": "object",
+            "properties": {
+                "createIndex": {
+                    "type": "string"
+                },
+                "expiresAt": {
+                    "type": "integer"
+                },
+                "flags": {
+                    "type": "integer"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "updateIndex": {
+                    "type": "string"
+                },
+                "value": {
+                    "description": "Value is encoded using base64.",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
         "v1alpha3.NamespaceSpec": {
             "type": "object",
             "properties": {

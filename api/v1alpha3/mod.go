@@ -6,6 +6,7 @@ import "github.com/gofiber/fiber/v2"
 // Controller groups all service interfaces for use in Fiber/HTTP routing.
 type Controller struct {
 	namespace NamespaceService
+	kv        KeyValueService
 }
 
 // NewController initialized controller correctly.
@@ -20,4 +21,5 @@ func NewController(nsSvc NamespaceService) *Controller {
 // Route sets up Fiber routing for Controller's services.
 func (ctl *Controller) Route(router fiber.Router) {
 	ctl.routeNamespace(router)
+	ctl.routeKV(router)
 }

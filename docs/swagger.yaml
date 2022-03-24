@@ -1,5 +1,23 @@
 basePath: /v1alpha2
 definitions:
+  v1alpha3.KVItem:
+    properties:
+      createIndex:
+        type: string
+      expiresAt:
+        type: integer
+      flags:
+        type: integer
+      key:
+        type: string
+      updateIndex:
+        type: string
+      value:
+        description: Value is encoded using base64.
+        items:
+          type: integer
+        type: array
+    type: object
   v1alpha3.NamespaceSpec:
     properties:
       description:
@@ -44,6 +62,150 @@ info:
   title: DataBuddy
   version: "1.0"
 paths:
+  /kv:
+    get:
+      consumes:
+      - application/json
+      description: List all keys.
+      parameters:
+      - default: ""
+        description: Key prefix
+        in: query
+        name: prefix
+        type: string
+      - default: default
+        description: Namespace
+        in: query
+        name: namespace
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              type: string
+            type: array
+      summary: List all keys
+      tags:
+      - kv
+  /kv/{key}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete provided key.
+      parameters:
+      - description: Key
+        in: path
+        name: key
+        required: true
+        type: string
+      - default: default
+        description: Namespace
+        in: query
+        name: namespace
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/v1alpha3.KVItem'
+        "404":
+          description: Returned when either key or namespace doesn't exist
+          schema:
+            $ref: '#/definitions/v1alpha3.RequestError'
+      summary: Delete key
+      tags:
+      - kv
+    get:
+      consumes:
+      - application/json
+      description: Get key value.
+      parameters:
+      - description: Key
+        in: path
+        name: key
+        required: true
+        type: string
+      - default: default
+        description: Namespace
+        in: query
+        name: namespace
+        type: string
+      - default: false
+        description: Return only value
+        in: query
+        name: raw
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/v1alpha3.KVItem'
+        "400":
+          description: Returned when 'raw' parameter is not parseable as boolean
+          schema:
+            $ref: '#/definitions/v1alpha3.RequestError'
+        "404":
+          description: Returned when either key or namespace doesn't exist
+          schema:
+            $ref: '#/definitions/v1alpha3.RequestError'
+      summary: Get key
+      tags:
+      - namespace
+    put:
+      consumes:
+      - text/plain
+      - application/octet-stream
+      description: |-
+        Store the provided value under key.
+        If namespace doesn't exist, it gets created.
+      parameters:
+      - description: Key
+        in: path
+        name: key
+        required: true
+        type: string
+      - default: default
+        description: Namespace
+        in: query
+        name: namespace
+        type: string
+      - default: 0
+        description: User-defined metadata
+        in: query
+        name: flags
+        type: integer
+      - default: 0
+        description: Time-To-Live (in seconds), 0 means the item won't expire
+        in: query
+        name: ttl
+        type: integer
+      - description: Value to store
+        in: body
+        name: value
+        required: true
+        schema:
+          type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: boolean
+        "400":
+          description: Returned when no value is provided
+          schema:
+            $ref: '#/definitions/v1alpha3.RequestError'
+      summary: Put key
+      tags:
+      - kv
   /namespace:
     get:
       consumes:
@@ -93,7 +255,7 @@ paths:
           schema:
             $ref: '#/definitions/v1alpha3.NamespaceStatus'
         "404":
-          description: Not Found
+          description: Returned when namespace doesn't exist
           schema:
             $ref: '#/definitions/v1alpha3.RequestError'
       summary: Delete namespace
@@ -117,7 +279,7 @@ paths:
           schema:
             $ref: '#/definitions/v1alpha3.NamespaceStatus'
         "404":
-          description: Not Found
+          description: Returned when namespace doesn't exist
           schema:
             $ref: '#/definitions/v1alpha3.RequestError'
       summary: Get namespace
@@ -136,7 +298,7 @@ paths:
         name: name
         required: true
         type: string
-      - description: Namespace fiels to update
+      - description: Namespace fields to update
         in: body
         name: spec
         required: true
@@ -150,7 +312,7 @@ paths:
           schema:
             $ref: '#/definitions/v1alpha3.NamespaceStatus'
         "400":
-          description: Bad Request
+          description: Returned when 'spec' doesn't conform to model
           schema:
             $ref: '#/definitions/v1alpha3.RequestError'
       summary: Create/update namespace

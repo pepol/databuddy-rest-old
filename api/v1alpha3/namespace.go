@@ -66,7 +66,7 @@ func (ctl *Controller) listNamespaces(c *fiber.Ctx) error {
 // @Produce json
 // @Param name path string true "Namespace name"
 // @Success 200 {object} NamespaceStatus
-// @Failure 404 {object} RequestError
+// @Failure 404 {object} RequestError "Returned when namespace doesn't exist"
 // @Router /namespace/{name} [get]
 // @Description Get namespace by name.
 func (ctl *Controller) getNamespace(c *fiber.Ctx) error {
@@ -91,7 +91,7 @@ func (ctl *Controller) getNamespace(c *fiber.Ctx) error {
 // @Param name path string true "Namespace name"
 // @Param spec body NamespaceSpec true "Namespace fields to update"
 // @Success 200 {object} NamespaceStatus
-// @Failure 400 {object} RequestError
+// @Failure 400 {object} RequestError "Returned when 'spec' doesn't conform to model"
 // @Router /namespace/{name} [put]
 // @Description Create the namespace with given name and spec.
 // @Description Update fields of given namespace based on body if it already
@@ -135,7 +135,7 @@ func (ctl *Controller) putNamespace(c *fiber.Ctx) error {
 // @Produce json
 // @Param name path string true "Namespace name"
 // @Success 200 {object} NamespaceStatus
-// @Failure 404 {object} RequestError
+// @Failure 404 {object} RequestError "Returned when namespace doesn't exist"
 // @Router /namespace/{name} [delete]
 // @Description Mark given namespace as deleted.
 // @Description All the objects stored within the namespace are scheduled for
@@ -157,15 +157,4 @@ func (ctl *Controller) deleteNamespace(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(ns)
-}
-
-// RequestError is a struct encompassing HTTP error message into JSON format.
-type RequestError struct {
-	Error string `json:"error"`
-}
-
-func httpError(c *fiber.Ctx, code int, message string) error {
-	return c.Status(code).JSON(RequestError{
-		Error: message,
-	})
 }
