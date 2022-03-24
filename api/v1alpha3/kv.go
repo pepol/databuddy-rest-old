@@ -49,13 +49,13 @@ func (ctl *Controller) routeKV(router fiber.Router) {
 // @Accept json
 // @Produce json
 // @Param prefix query string false "Key prefix" default()
-// @Param namespace query string false "Namespace" default(default)
+// @Param ns query string false "Namespace" default(default)
 // @Success 200 {object} KeyList
 // @Router /kv [get]
 // @Description List all keys.
 func (ctl *Controller) listKeys(c *fiber.Ctx) error {
 	prefix := c.Query("prefix", "")
-	ns := c.Query("namespace", "default")
+	ns := c.Query("ns", "default")
 
 	keyList, err := ctl.kv.List(ns, prefix)
 	if err != nil {
@@ -66,11 +66,11 @@ func (ctl *Controller) listKeys(c *fiber.Ctx) error {
 }
 
 // @Summary Get key
-// @Tags namespace
+// @Tags kv
 // @Accept json
 // @Produce json
 // @Param key path string true "Key"
-// @Param namespace query string false "Namespace" default(default)
+// @Param ns query string false "Namespace" default(default)
 // @Param raw query bool false "Return only value" default(false)
 // @Success 200 {object} KVItem
 // @Failure 400 {object} RequestError "Returned when 'raw' parameter is not parseable as boolean"
@@ -79,7 +79,7 @@ func (ctl *Controller) listKeys(c *fiber.Ctx) error {
 // @Description Get key value.
 func (ctl *Controller) getKey(c *fiber.Ctx) error {
 	key := c.Params("+")
-	ns := c.Query("namespace", "default")
+	ns := c.Query("ns", "default")
 
 	raw, err := strconv.ParseBool(c.Query("raw", "false"))
 	if err != nil {
@@ -111,7 +111,7 @@ func (ctl *Controller) getKey(c *fiber.Ctx) error {
 // @Accept octet-stream
 // @Produce json
 // @Param key path string true "Key"
-// @Param namespace query string false "Namespace" default(default)
+// @Param ns query string false "Namespace" default(default)
 // @Param flags query byte false "User-defined metadata" default(0)
 // @Param ttl query uint64 false "Time-To-Live (in seconds), 0 means the item won't expire" default(0)
 // @Param value body string true "Value to store"
@@ -123,7 +123,7 @@ func (ctl *Controller) getKey(c *fiber.Ctx) error {
 func (ctl *Controller) putKey(c *fiber.Ctx) error {
 	key := c.Params("+")
 
-	ns := c.Query("namespace", "default")
+	ns := c.Query("ns", "default")
 	if !ctl.namespace.Has(ns) {
 		nsSpec := new(NamespaceSpec)
 		nsSpec.Name = ns
@@ -163,7 +163,7 @@ func (ctl *Controller) putKey(c *fiber.Ctx) error {
 // @Accept json
 // @Produce json
 // @Param key path string true "Key"
-// @Param namespace query string false "Namespace" default(default)
+// @Param ns query string false "Namespace" default(default)
 // @Success 200 {object} KVItem
 // @Failure 404 {object} RequestError "Returned when either key or namespace doesn't exist"
 // @Router /kv/{key} [delete]
@@ -171,7 +171,7 @@ func (ctl *Controller) putKey(c *fiber.Ctx) error {
 func (ctl *Controller) deleteKey(c *fiber.Ctx) error {
 	key := c.Params("+")
 
-	ns := c.Query("namespace", "default")
+	ns := c.Query("ns", "default")
 	if !ctl.namespace.Has(ns) {
 		return httpError(c, fiber.StatusNotFound, fmt.Sprintf("namespace '%s' not found", ns))
 	}

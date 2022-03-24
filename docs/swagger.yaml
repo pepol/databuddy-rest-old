@@ -76,7 +76,7 @@ paths:
       - default: default
         description: Namespace
         in: query
-        name: namespace
+        name: ns
         type: string
       produces:
       - application/json
@@ -104,7 +104,7 @@ paths:
       - default: default
         description: Namespace
         in: query
-        name: namespace
+        name: ns
         type: string
       produces:
       - application/json
@@ -133,7 +133,7 @@ paths:
       - default: default
         description: Namespace
         in: query
-        name: namespace
+        name: ns
         type: string
       - default: false
         description: Return only value
@@ -157,7 +157,7 @@ paths:
             $ref: '#/definitions/v1alpha3.RequestError'
       summary: Get key
       tags:
-      - namespace
+      - kv
     put:
       consumes:
       - text/plain
@@ -174,7 +174,7 @@ paths:
       - default: default
         description: Namespace
         in: query
-        name: namespace
+        name: ns
         type: string
       - default: 0
         description: User-defined metadata

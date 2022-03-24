@@ -47,7 +47,7 @@ const docTemplate_swagger = `{
                         "type": "string",
                         "default": "default",
                         "description": "Namespace",
-                        "name": "namespace",
+                        "name": "ns",
                         "in": "query"
                     }
                 ],
@@ -74,7 +74,7 @@ const docTemplate_swagger = `{
                     "application/json"
                 ],
                 "tags": [
-                    "namespace"
+                    "kv"
                 ],
                 "summary": "Get key",
                 "parameters": [
@@ -89,7 +89,7 @@ const docTemplate_swagger = `{
                         "type": "string",
                         "default": "default",
                         "description": "Namespace",
-                        "name": "namespace",
+                        "name": "ns",
                         "in": "query"
                     },
                     {
@@ -146,7 +146,7 @@ const docTemplate_swagger = `{
                         "type": "string",
                         "default": "default",
                         "description": "Namespace",
-                        "name": "namespace",
+                        "name": "ns",
                         "in": "query"
                     },
                     {
@@ -212,7 +212,7 @@ const docTemplate_swagger = `{
                         "type": "string",
                         "default": "default",
                         "description": "Namespace",
-                        "name": "namespace",
+                        "name": "ns",
                         "in": "query"
                     }
                 ],
