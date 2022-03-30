@@ -16,31 +16,12 @@ limitations under the License.
 package main
 
 import (
-	"context"
 	"fmt"
 	"os"
-	"runtime/debug"
 
-	"github.com/ansrivas/fiberprometheus/v2"
-	swagger "github.com/arsmn/fiber-swagger/v2"
-	"github.com/gofiber/contrib/otelfiber"
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/etag"
-	expvarmw "github.com/gofiber/fiber/v2/middleware/expvar"
-	"github.com/gofiber/fiber/v2/middleware/monitor"
-	"github.com/gofiber/fiber/v2/middleware/recover"
-	"github.com/gofiber/fiber/v2/middleware/requestid"
-	api "github.com/pepol/databuddy/api/v1alpha3"
-	_ "github.com/pepol/databuddy/docs"
-	"github.com/pepol/databuddy/internal/log"
+	"github.com/pepol/databuddy/server"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"go.opentelemetry.io/otel"
-	stdout "go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
-	"go.opentelemetry.io/otel/propagation"
-	"go.opentelemetry.io/otel/sdk/resource"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.7.0"
 )
 
 var rootCmd = &cobra.Command{
@@ -65,7 +46,7 @@ func initConfig() {
 		// Search config in home directory with name ".orders-api" (without extension).
 		viper.AddConfigPath(home)
 		viper.SetConfigType("yaml")
-		viper.SetConfigName(".orders-api")
+		viper.SetConfigName(".databuddy")
 	}
 
 	viper.AutomaticEnv() // read in environment variables that match
@@ -91,82 +72,9 @@ func init() {
 	// migrateCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
 
-//go:generate swag init
-// @title        DataBuddy
-// @version      1.0.0-alpha3
-// @description  API to use DataBuddy data storage system
-
-// @contact.name  Peter Polacik
-
-// @license.name  Apache 2.0
-// @license.url   http://www.apache.org/licenses/LICENSE-2.0.html
-
-// @host      localhost:8080
-// @BasePath  /v1alpha3
 // Serve HTTP requests.
 func serve(cmd *cobra.Command, args []string) {
-	tp := initTracer()
-	defer func() {
-		if err := tp.Shutdown(context.Background()); err != nil {
-			log.Error("error shutting down tracer provider", err)
-		}
-	}()
-
-	app := fiber.New()
-
-	prometheus := fiberprometheus.New("databuddy")
-	prometheus.RegisterAt(app, "/_internal/metrics")
-
-	app.Use("/", prometheus.Middleware)
-	app.Use(otelfiber.Middleware("databuddy"))
-	app.Use(recover.New())
-	app.Use(requestid.New())
-	app.Use(expvarmw.New())
-	app.Use(etag.New())
-
-	app.Get("/_internal/dashboard", monitor.New())
-	app.Get("/swagger/*", swagger.HandlerDefault)
-
-	// API definition.
-	v1alpha3 := app.Group("/v1alpha3")
-
-	v1alpha3.Use("/", prometheus.Middleware)
-
-	// API controller.
-	apiCtl := api.NewController(&api.Config{})
-
-	apiCtl.Route(v1alpha3)
-
-	if err := app.Listen(":8080"); err != nil {
-		log.Error("error listening", err)
-	}
-}
-
-func initTracer() *sdktrace.TracerProvider {
-	exporter, err := stdout.New()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	info, ok := debug.ReadBuildInfo()
-	if !ok {
-		log.Fatal("cannot retrieve build info")
-	}
-
-	tp := sdktrace.NewTracerProvider(
-		sdktrace.WithSampler(sdktrace.AlwaysSample()),
-		sdktrace.WithBatcher(exporter),
-		sdktrace.WithResource(
-			resource.NewWithAttributes(
-				semconv.SchemaURL,
-				semconv.ServiceNameKey.String("databuddy"),
-				semconv.ServiceVersionKey.String(info.Main.Version),
-			),
-		),
-	)
-	otel.SetTracerProvider(tp)
-	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
-	return tp
+	server.Serve()
 }
 
 func main() {
