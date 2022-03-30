@@ -25,12 +25,15 @@ func NewHandler() *Handler {
 
 var addr = ":6543"
 
+const version = "v1.0.0-alpha1"  // TODO: Find better version reporting system.
+
 // Serve the database over network.
 func Serve() {
 	handler := NewHandler()
 	mux := redcon.NewServeMux()
 
 	// General commands.
+	mux.HandleFunc("info", handler.info)
 	mux.HandleFunc("ping", handler.ping)
 	mux.HandleFunc("quit", handler.quit)
 
