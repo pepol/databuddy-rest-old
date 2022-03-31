@@ -3,6 +3,7 @@
 package server
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/pepol/databuddy/internal/db"
@@ -10,41 +11,51 @@ import (
 	"github.com/tidwall/redcon"
 )
 
+type commandInfo struct {
+	usage string
+	help  string
+}
+
 // Handler is the main server connection handler.
 type Handler struct {
-	mutex sync.RWMutex
-	db    *db.Database
+	mutex               sync.RWMutex
+	db                  *db.Database
+	commandDescriptions map[string]commandInfo
+
+	Mux *redcon.ServeMux
 }
 
 // NewHandler initialized the server Handler.
 func NewHandler() *Handler {
 	return &Handler{
-		db: db.OpenDatabase(),
+		commandDescriptions: make(map[string]commandInfo),
+		db:                  db.OpenDatabase(),
+		Mux:                 redcon.NewServeMux(),
 	}
 }
 
 var addr = ":6543"
 
-const version = "v1.0.0-alpha1"  // TODO: Find better version reporting system.
+const version = "v1.0.0-alpha1" // TODO: Find better version reporting system.
 
 // Serve the database over network.
 func Serve() {
 	handler := NewHandler()
-	mux := redcon.NewServeMux()
 
 	// General commands.
-	mux.HandleFunc("info", handler.info)
-	mux.HandleFunc("ping", handler.ping)
-	mux.HandleFunc("quit", handler.quit)
+	handler.RegisterCommand("info", handler.info, "INFO [<command> ...]", "show information about command(s)")
+	handler.RegisterCommand("node", handler.nodeInfo, "NODE", "return information about current node")
+	handler.RegisterCommand("ping", handler.ping, "PING", "respond with 'PONG'")
+	handler.RegisterCommand("quit", handler.quit, "QUIT", "close the connection")
 
 	// KV commands.
-	mux.HandleFunc("get", handler.get)
-	mux.HandleFunc("set", handler.set)
-	mux.HandleFunc("del", handler.del)
+	handler.RegisterCommand("get", handler.get, "GET <key>", "return value stored under given key")
+	handler.RegisterCommand("set", handler.set, "SET <key> <value>", "store value under key, returns 'OK' if successful, 'ERR' otherwise")
+	handler.RegisterCommand("del", handler.del, "DEL <key> [<key> ...]", "delete values stored under key(s), returns number of deleted items")
 
 	err := redcon.ListenAndServe(
 		addr,
-		mux.ServeRESP,
+		handler.Mux.ServeRESP,
 		func(conn redcon.Conn) bool {
 			return true
 		},
@@ -53,4 +64,41 @@ func Serve() {
 	if err != nil {
 		log.Error("serving resp", err)
 	}
+}
+
+// RegisterCommand registers command into RESP handler with given handler,
+// usage information, and more detailed help text.
+func (h *Handler) RegisterCommand(command string, handler redcon.HandlerFunc, usage string, help string) *Handler {
+	h.commandDescriptions[command] = commandInfo{
+		usage: usage,
+		help:  help,
+	}
+	h.Mux.HandleFunc(command, handler)
+
+	return h
+}
+
+// INFO [<command> ...]
+// Show information about given commands (or list all of them).
+func (h *Handler) info(conn redcon.Conn, cmd redcon.Command) {
+	if len(cmd.Args) == 1 {
+		conn.WriteArray(len(h.commandDescriptions) + 1)
+		for _, info := range h.commandDescriptions {
+			conn.WriteBulkString(info.usage)
+		}
+		conn.WriteBulkString("\r\n")
+		return
+	}
+
+	conn.WriteArray(len(cmd.Args)) // This should be 'len - 1', but we're adding additional newline string.
+	for _, argB := range cmd.Args[1:] {
+		arg := string(argB)
+		info, ok := h.commandDescriptions[arg]
+		if !ok {
+			conn.WriteError(fmt.Sprintf("ERR command not found '%s'", arg))
+			continue
+		}
+		conn.WriteBulkString(fmt.Sprintf("%s\r\n\t%s", info.usage, info.help))
+	}
+	conn.WriteBulkString("\r\n")
 }

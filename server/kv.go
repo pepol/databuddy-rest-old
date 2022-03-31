@@ -9,6 +9,8 @@ import (
 
 // This file contains implementation of the "kv" commands.
 
+// GET <key>
+// Get value at key.
 func (h *Handler) get(conn redcon.Conn, cmd redcon.Command) {
 	const getArgsCount = 2
 
@@ -33,7 +35,10 @@ func (h *Handler) get(conn redcon.Conn, cmd redcon.Command) {
 	conn.WriteBulk(val)
 }
 
-//nolint:ifshort // Error returned from Set operation is only checked in if, however we shouldn't write response to user in mutex lock.
+// SET <key> <value>
+// Set key to contain value.
+//noling:nolintlint
+//nolint:ifshort // Error shouldn't be checked and responded to inside mutex lock.
 func (h *Handler) set(conn redcon.Conn, cmd redcon.Command) {
 	const setArgsCount = 3
 
@@ -59,6 +64,8 @@ func (h *Handler) set(conn redcon.Conn, cmd redcon.Command) {
 	conn.WriteString("OK")
 }
 
+// DEL <key> [<key> ...]
+// Delete key(s).
 func (h *Handler) del(conn redcon.Conn, cmd redcon.Command) {
 	const delArgsMinCount = 2
 
