@@ -1,8 +1,6 @@
 linters-settings:
   goimports:
     local-prefixes: github.com/pepol/databuddy
-  golint:
-    min-confidence: 0.8
   gocyclo:
     min-complexity: 15
   govet:
@@ -22,15 +20,10 @@ linters:
   enable:
     - deadcode
     - errcheck
-    - gosimple
     - govet
     - ineffassign
-    - staticcheck
-    - structcheck
     - typecheck
-    - unused
     - varcheck
-    - bodyclose
     - depguard
     - dupl
     - exportloopref
@@ -43,22 +36,16 @@ linters:
     - gocyclo
     - godot
     - gofumpt
-    - golint
     - gomnd
     - goprintffuncname
     - gosec
     - ifshort
     - misspell
-    - noctx
     - nolintlint
-    - rowserrcheck
-    - sqlclosecheck
-    - stylecheck
     - thelper
-    - tparallel
     - unconvert
-    - unparam
     - whitespace
+    - revive
     # - errorlint
     # - goerr113
     # - wrapcheck
