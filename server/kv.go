@@ -37,7 +37,6 @@ func (h *Handler) get(conn redcon.Conn, cmd redcon.Command) {
 
 // SET <key> <value>
 // Set key to contain value.
-//noling:nolintlint
 //nolint:ifshort // Error shouldn't be checked and responded to inside mutex lock.
 func (h *Handler) set(conn redcon.Conn, cmd redcon.Command) {
 	const setArgsCount = 3
