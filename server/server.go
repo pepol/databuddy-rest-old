@@ -4,11 +4,14 @@ package server
 
 import (
 	"fmt"
+	"net"
+	"os"
 	"sync"
 
 	"github.com/pepol/databuddy/internal/context"
 	"github.com/pepol/databuddy/internal/db"
 	"github.com/pepol/databuddy/internal/log"
+	"github.com/spf13/viper"
 	"github.com/tidwall/redcon"
 )
 
@@ -24,24 +27,38 @@ type Handler struct {
 	commandDescriptions map[string]commandInfo
 
 	Mux *redcon.ServeMux
+
+	addr     string
+	hostname string
+	version  string
 }
 
 // NewHandler initialized the server Handler.
-func NewHandler() *Handler {
+func NewHandler(version, addr, hostname string) *Handler {
 	return &Handler{
 		commandDescriptions: make(map[string]commandInfo),
 		db:                  db.OpenDatabase(),
 		Mux:                 redcon.NewServeMux(),
+		addr:                addr,
+		hostname:            hostname,
+		version:             version,
 	}
 }
 
-var addr = ":6543"
-
-const version = "v1.0.0-alpha1" // TODO: Find better version reporting system.
-
 // Serve the database over network.
-func Serve() {
-	handler := NewHandler()
+func Serve(version string) {
+	port := viper.GetInt("port")
+	host := viper.GetString("host")
+
+	addr := net.JoinHostPort(host, fmt.Sprintf("%d", port))
+
+	hostname, err := os.Hostname()
+	if err != nil {
+		log.Error("getting hostname", err)
+		hostname = "localhost"
+	}
+
+	handler := NewHandler(version, addr, hostname)
 
 	// General commands.
 	handler.RegisterCommand("info", handler.info, "INFO [<command> ...]", "show information about command(s)")
@@ -58,7 +75,9 @@ func Serve() {
 	handler.RegisterCommand("set", handler.set, "SET <key> <value>", "store value under key, returns 'OK' if successful, 'ERR' otherwise")
 	handler.RegisterCommand("del", handler.del, "DEL <key> [<key> ...]", "delete values stored under key(s), returns number of deleted items")
 
-	err := redcon.ListenAndServe(
+	log.Info(fmt.Sprintf("Starting DataBuddy %s RESP server on %s", version, addr))
+
+	err = redcon.ListenAndServe(
 		addr,
 		handler.Mux.ServeRESP,
 		handler.acceptConnection,

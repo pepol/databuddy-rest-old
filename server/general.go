@@ -2,7 +2,6 @@ package server
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/pepol/databuddy/internal/log"
 	"github.com/tidwall/redcon"
@@ -13,16 +12,11 @@ import (
 // NODE
 // Returns node information.
 func (h *Handler) nodeInfo(conn redcon.Conn, _cmd redcon.Command) {
-	hostname, err := os.Hostname()
-	if err != nil {
-		hostname = "localhost"
-	}
-
 	conn.WriteBulkString(fmt.Sprintf(
 		"DataBuddy %s %s (%s) client: %s\r\n",
-		version,
-		addr,
-		hostname,
+		h.version,
+		h.addr,
+		h.hostname,
 		conn.RemoteAddr(),
 	))
 }

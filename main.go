@@ -16,65 +16,72 @@ limitations under the License.
 package main
 
 import (
-	"fmt"
 	"os"
 
+	"github.com/pepol/databuddy/internal/log"
 	"github.com/pepol/databuddy/server"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
+const (
+	configEnvPrefix = "APP"
+	defaultDataDir  = "/var/lib/databuddy"
+	defaultPort     = 6543
+	defaultHost     = "127.0.0.1"
+	defaultLogLevel = "debug"
+)
+
 var rootCmd = &cobra.Command{
-	Use:   "databuddy",
-	Short: "DataBuddy Global Datastore",
-	Long:  `Service that handles API requests for databuddy storage model`,
-	Run:   serve,
+	Use:     "databuddy",
+	Short:   "DataBuddy Global Datastore",
+	Long:    `Service that handles API requests for databuddy storage model`,
+	Run:     serve,
+	Version: version,
 }
 
-var cfgFile string
-
-// initConfig reads in config file and ENV variables if set.
-func initConfig() {
-	if cfgFile != "" {
-		// Use config file from the flag.
-		viper.SetConfigFile(cfgFile)
-	} else {
-		// Find home directory.
-		home, err := os.UserHomeDir()
-		cobra.CheckErr(err)
-
-		// Search config in home directory with name ".orders-api" (without extension).
-		viper.AddConfigPath(home)
-		viper.SetConfigType("yaml")
-		viper.SetConfigName(".databuddy")
-	}
-
-	viper.AutomaticEnv() // read in environment variables that match
-
-	// If a config file is found, read it in.
-	if err := viper.ReadInConfig(); err == nil {
-		fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
-	}
-}
+// Build info variables set by goreleaser.
+var version = "latest"
 
 func init() {
-	cobra.OnInitialize(initConfig)
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.databuddy.yaml)")
+	viper.SetDefault("datadir", defaultDataDir)
+	viper.SetDefault("port", defaultPort)
+	viper.SetDefault("host", defaultHost)
+	viper.SetDefault("loglevel", defaultLogLevel)
 
-	// Here you will define your flags and configuration settings.
+	// Parse environment variables.
+	viper.SetEnvPrefix(configEnvPrefix)
+	viper.AutomaticEnv()
 
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// migrateCmd.PersistentFlags().String("foo", "", "A help for foo")
+	// Parse commandline arguments.
 
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// migrateCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	// Data storage settings - global.
+	rootCmd.PersistentFlags().StringP("datadir", "d", defaultDataDir, "directory where all data is stored")
+	if err := viper.BindPFlag("datadir", rootCmd.PersistentFlags().Lookup("datadir")); err != nil {
+		log.Fatal(err)
+	}
+
+	// RESP server settings.
+	rootCmd.Flags().IntP("port", "p", defaultPort, "port to listen on")
+	if err := viper.BindPFlag("port", rootCmd.Flags().Lookup("port")); err != nil {
+		log.Fatal(err)
+	}
+
+	rootCmd.Flags().StringP("host", "H", defaultHost, "host to listen on")
+	if err := viper.BindPFlag("host", rootCmd.Flags().Lookup("host")); err != nil {
+		log.Fatal(err)
+	}
+
+	// Observability settings.
+	rootCmd.Flags().String("loglevel", defaultLogLevel, "level of logs to display")
+	if err := viper.BindPFlag("loglevel", rootCmd.Flags().Lookup("loglevel")); err != nil {
+		log.Fatal(err)
+	}
 }
 
 // Serve HTTP requests.
 func serve(cmd *cobra.Command, args []string) {
-	server.Serve()
+	server.Serve(version)
 }
 
 func main() {
