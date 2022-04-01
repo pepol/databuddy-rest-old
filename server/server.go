@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/pepol/databuddy/internal/context"
 	"github.com/pepol/databuddy/internal/db"
 	"github.com/pepol/databuddy/internal/log"
 	"github.com/tidwall/redcon"
@@ -48,6 +49,10 @@ func Serve() {
 	handler.RegisterCommand("ping", handler.ping, "PING", "respond with 'PONG'")
 	handler.RegisterCommand("quit", handler.quit, "QUIT", "close the connection")
 
+	// DB management commands.
+	handler.RegisterCommand("create", handler.create, "CREATE <database>", "create database with given name")
+	handler.RegisterCommand("use", handler.use, "USE <database>", "set database for further queries")
+
 	// KV commands.
 	handler.RegisterCommand("get", handler.get, "GET <key>", "return value stored under given key")
 	handler.RegisterCommand("set", handler.set, "SET <key> <value>", "store value under key, returns 'OK' if successful, 'ERR' otherwise")
@@ -56,9 +61,7 @@ func Serve() {
 	err := redcon.ListenAndServe(
 		addr,
 		handler.Mux.ServeRESP,
-		func(conn redcon.Conn) bool {
-			return true
-		},
+		handler.acceptConnection,
 		func(conn redcon.Conn, err error) {},
 	)
 	if err != nil {
@@ -76,6 +79,21 @@ func (h *Handler) RegisterCommand(command string, handler redcon.HandlerFunc, us
 	h.Mux.HandleFunc(command, handler)
 
 	return h
+}
+
+// Initialize connection context on connection accept.
+func (h *Handler) acceptConnection(conn redcon.Conn) bool {
+	bucket, err := h.db.Get(db.DefaultBucketName)
+	if err != nil {
+		conn.WriteError(fmt.Sprintf("ERR initializing connection: %v", err))
+		return false
+	}
+
+	conn.SetContext(&context.Context{
+		Bucket: bucket,
+	})
+
+	return true
 }
 
 // INFO [<command> ...]

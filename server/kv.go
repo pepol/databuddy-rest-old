@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 
+	"github.com/pepol/databuddy/internal/context"
 	"github.com/pepol/databuddy/internal/log"
 	"github.com/tidwall/redcon"
 )
@@ -23,9 +24,18 @@ func (h *Handler) get(conn redcon.Conn, cmd redcon.Command) {
 
 	// TODO: Add more argument checking.
 
-	h.mutex.RLock()
-	val, err := h.db.Get(key)
-	h.mutex.RUnlock()
+	ctx, ok := conn.Context().(*context.Context)
+	if !ok {
+		conn.WriteError("ERR context not set on connection")
+		if err := conn.Close(); err != nil {
+			log.Error("closing connection", err)
+		}
+		return
+	}
+
+	ctx.Bucket.Mutex.RLock()
+	val, err := ctx.Bucket.Get(key)
+	ctx.Bucket.Mutex.RUnlock()
 
 	if err != nil {
 		conn.WriteError(fmt.Sprintf("ERR getting item '%s': %v", key, err))
@@ -51,9 +61,18 @@ func (h *Handler) set(conn redcon.Conn, cmd redcon.Command) {
 
 	// TODO: Add more argument checking.
 
-	h.mutex.Lock()
-	err := h.db.Set(key, val)
-	h.mutex.Unlock()
+	ctx, ok := conn.Context().(*context.Context)
+	if !ok {
+		conn.WriteError("ERR context not set on connection")
+		if err := conn.Close(); err != nil {
+			log.Error("closing connection", err)
+		}
+		return
+	}
+
+	ctx.Bucket.Mutex.Lock()
+	err := ctx.Bucket.Set(key, val)
+	ctx.Bucket.Mutex.Unlock()
 
 	if err != nil {
 		conn.WriteError(fmt.Sprintf("ERR setting item '%s': %v", key, err))
@@ -73,6 +92,15 @@ func (h *Handler) del(conn redcon.Conn, cmd redcon.Command) {
 		return
 	}
 
+	ctx, ok := conn.Context().(*context.Context)
+	if !ok {
+		conn.WriteError("ERR context not set on connection")
+		if err := conn.Close(); err != nil {
+			log.Error("closing connection", err)
+		}
+		return
+	}
+
 	deleted := 0
 
 	for i := 1; i < len(cmd.Args); i++ {
@@ -80,9 +108,9 @@ func (h *Handler) del(conn redcon.Conn, cmd redcon.Command) {
 
 		// TODO: Add more argument checking.
 
-		h.mutex.Lock()
-		err := h.db.Delete(key)
-		h.mutex.Unlock()
+		ctx.Bucket.Mutex.Lock()
+		err := ctx.Bucket.Delete(key)
+		ctx.Bucket.Mutex.Unlock()
 
 		if err != nil {
 			log.Error(fmt.Sprintf("deleting key '%s'", key), err)
