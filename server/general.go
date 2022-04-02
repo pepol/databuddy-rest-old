@@ -9,11 +9,11 @@ import (
 
 // This file contains implementation of the "general" commands.
 
-// NODE
+// INFO
 // Returns node information.
-func (h *Handler) nodeInfo(conn redcon.Conn, _cmd redcon.Command) {
+func (h *Handler) info(conn redcon.Conn, _cmd redcon.Command) {
 	conn.WriteBulkString(fmt.Sprintf(
-		"DataBuddy %s %s (%s) client: %s\r\n",
+		"DataBuddy %s %s (%s) client: %s",
 		h.version,
 		h.addr,
 		h.hostname,

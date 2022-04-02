@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/pepol/databuddy/internal/context"
@@ -16,14 +17,21 @@ import (
 )
 
 type commandInfo struct {
-	usage string
-	help  string
+	arity      int
+	flags      []string
+	firstKey   int
+	lastKey    int
+	stepKey    int
+	categories []string
+	tips       []string
 }
 
 // Handler is the main server connection handler.
 type Handler struct {
-	mutex               sync.RWMutex
-	db                  *db.Database
+	mutex sync.RWMutex
+	db    *db.Database
+
+	// Replace with sorted map implementation for consistent ordering.
 	commandDescriptions map[string]commandInfo
 
 	Mux *redcon.ServeMux
@@ -46,6 +54,7 @@ func NewHandler(version, addr, hostname string) *Handler {
 }
 
 // Serve the database over network.
+//nolint:gomnd // Magic numbers in command registration calls are not magic.
 func Serve(version string) {
 	port := viper.GetInt("port")
 	host := viper.GetString("host")
@@ -60,20 +69,26 @@ func Serve(version string) {
 
 	handler := NewHandler(version, addr, hostname)
 
-	// General commands.
-	handler.RegisterCommand("info", handler.info, "INFO [<command> ...]", "show information about command(s)")
-	handler.RegisterCommand("node", handler.nodeInfo, "NODE", "return information about current node")
-	handler.RegisterCommand("ping", handler.ping, "PING", "respond with 'PONG'")
-	handler.RegisterCommand("quit", handler.quit, "QUIT", "close the connection")
+	// Meta (command-handling) commands.
+	handler.Register("command", handler.command, 1, []string{"server"}, -1, -1, 0, nil, []string{"COMMAND", "show information about all commands"})
+	handler.RegisterChild("command count", 2, []string{"server"}, -1, -1, 0, nil, []string{"COMMAND COUNT", "return count of all available commands"})
+	handler.RegisterChild("command list", 2, []string{"server"}, -1, -1, 0, nil, []string{"COMMAND LIST", "return list of all available commands"})
+	handler.RegisterChild("command info", -2, []string{"server"}, 2, -1, 1, nil, []string{"COMMAND INFO [<command> ...]", "show system information about given command(s)"})
+	handler.RegisterChild("command docs", -2, []string{"server"}, 2, -1, 1, nil, []string{"COMMAND DOCS [<command> ...]", "show documentation about given command(s)"})
+
+	// General information commands.
+	handler.Register("info", handler.info, 1, []string{"server"}, -1, -1, 0, nil, []string{"INFO", "return information about current node"})
+	handler.Register("ping", handler.ping, 1, []string{"general"}, -1, -1, 0, nil, []string{"PING", "respond with 'PONG'"})
+	handler.Register("quit", handler.quit, 1, []string{"server"}, -1, -1, 0, nil, []string{"QUIT", "close the connection"})
 
 	// DB management commands.
-	handler.RegisterCommand("create", handler.create, "CREATE <database>", "create database with given name")
-	handler.RegisterCommand("use", handler.use, "USE <database>", "set database for further queries")
+	handler.Register("create", handler.create, 2, []string{"database"}, 1, 1, 0, nil, []string{"CREATE <database>", "create database with given name"})
+	handler.Register("use", handler.use, 2, []string{"database"}, 1, 1, 0, nil, []string{"USE <database>", "set database for further queries"})
 
 	// KV commands.
-	handler.RegisterCommand("get", handler.get, "GET <key>", "return value stored under given key")
-	handler.RegisterCommand("set", handler.set, "SET <key> <value>", "store value under key, returns 'OK' if successful, 'ERR' otherwise")
-	handler.RegisterCommand("del", handler.del, "DEL <key> [<key> ...]", "delete values stored under key(s), returns number of deleted items")
+	handler.Register("get", handler.get, 2, []string{"read"}, 1, 1, 0, nil, []string{"GET <key>", "return value stored under given key"})
+	handler.Register("set", handler.set, 3, []string{"write"}, 1, 1, 0, nil, []string{"SET <key> <value>", "store value under key, returns 'OK' if successful, 'ERR' otherwise"})
+	handler.Register("del", handler.del, -2, []string{"write"}, 1, -1, 1, nil, []string{"DEL <key> [<key> ...]", "delete values stored under key(s), returns number of deleted items"})
 
 	log.Info(fmt.Sprintf("Starting DataBuddy %s RESP server on %s", version, addr))
 
@@ -88,14 +103,54 @@ func Serve(version string) {
 	}
 }
 
-// RegisterCommand registers command into RESP handler with given handler,
-// usage information, and more detailed help text.
-func (h *Handler) RegisterCommand(command string, handler redcon.HandlerFunc, usage string, help string) *Handler {
+// Register command into RESP handler with given handler and usage information
+// for the command.
+func (h *Handler) Register(
+	command string,
+	handler redcon.HandlerFunc,
+	arity int,
+	flags []string,
+	firstKey int,
+	lastKey int,
+	stepKey int,
+	categories []string,
+	tips []string,
+) *Handler {
 	h.commandDescriptions[command] = commandInfo{
-		usage: usage,
-		help:  help,
+		arity:      arity,
+		flags:      flags,
+		firstKey:   firstKey,
+		lastKey:    lastKey,
+		stepKey:    stepKey,
+		categories: categories,
+		tips:       tips,
 	}
 	h.Mux.HandleFunc(command, handler)
+
+	return h
+}
+
+// RegisterChild registers sub-command's usage information only.
+// Handler for parent command needs to handle the sub-command call!
+func (h *Handler) RegisterChild(
+	command string,
+	arity int,
+	flags []string,
+	firstKey int,
+	lastKey int,
+	stepKey int,
+	categories []string,
+	tips []string,
+) *Handler {
+	h.commandDescriptions[command] = commandInfo{
+		arity:      arity,
+		flags:      flags,
+		firstKey:   firstKey,
+		lastKey:    lastKey,
+		stepKey:    stepKey,
+		categories: categories,
+		tips:       tips,
+	}
 
 	return h
 }
@@ -115,27 +170,110 @@ func (h *Handler) acceptConnection(conn redcon.Conn) bool {
 	return true
 }
 
-// INFO [<command> ...]
+// COMMAND [<command> ...]
 // Show information about given commands (or list all of them).
-func (h *Handler) info(conn redcon.Conn, cmd redcon.Command) {
+func (h *Handler) command(conn redcon.Conn, cmd redcon.Command) {
 	if len(cmd.Args) == 1 {
-		conn.WriteArray(len(h.commandDescriptions) + 1)
-		for _, info := range h.commandDescriptions {
-			conn.WriteBulkString(info.usage)
-		}
-		conn.WriteBulkString("\r\n")
+		h.commandInfo(conn, nil)
 		return
 	}
 
-	conn.WriteArray(len(cmd.Args)) // This should be 'len - 1', but we're adding additional newline string.
-	for _, argB := range cmd.Args[1:] {
-		arg := string(argB)
+	subcommand := strings.ToLower(string(cmd.Args[1]))
+
+	switch subcommand {
+	case "count":
+		h.commandCount(conn)
+	case "list":
+		h.commandList(conn)
+	case "info":
+		h.commandInfo(conn, cmd.Args[2:])
+	case "docs":
+		h.commandDocs(conn, cmd.Args[2:])
+	default:
+		conn.WriteError(fmt.Sprintf("ERR unknown command '%s %s'", string(cmd.Args[0]), subcommand))
+	}
+}
+
+// COMMAND COUNT
+// Return count of all commands available on server.
+func (h *Handler) commandCount(conn redcon.Conn) {
+	conn.WriteInt(len(h.commandDescriptions))
+}
+
+// COMMAND LIST
+// Return array of all commands available on server.
+func (h *Handler) commandList(conn redcon.Conn) {
+	conn.WriteArray(len(h.commandDescriptions))
+	for name := range h.commandDescriptions {
+		conn.WriteString(name)
+	}
+}
+
+// COMMAND INFO [<command> ...]
+// Show information about given commands (if slice is nil, show all commands).
+func (h *Handler) commandInfo(conn redcon.Conn, commands [][]byte) {
+	if commands == nil || len(commands) == 0 {
+		conn.WriteArray(len(h.commandDescriptions))
+		for name, info := range h.commandDescriptions {
+			writeCommandInfo(conn, name, info)
+		}
+		return
+	}
+
+	conn.WriteArray(len(commands))
+	for _, argB := range commands {
+		arg := strings.ToLower(string(argB))
 		info, ok := h.commandDescriptions[arg]
 		if !ok {
 			conn.WriteError(fmt.Sprintf("ERR command not found '%s'", arg))
 			continue
 		}
-		conn.WriteBulkString(fmt.Sprintf("%s\r\n\t%s", info.usage, info.help))
+		writeCommandInfo(conn, arg, info)
 	}
-	conn.WriteBulkString("\r\n")
+}
+
+// COMMAND DOCS [<command> ...]
+// Show usage documentation about given commands (if slice is nil, show all commands).
+func (h *Handler) commandDocs(conn redcon.Conn, commands [][]byte) {
+	if commands == nil || len(commands) == 0 {
+		conn.WriteArray(len(h.commandDescriptions))
+		for name, info := range h.commandDescriptions {
+			writeCommandDocs(conn, name, info)
+		}
+		return
+	}
+
+	conn.WriteArray(len(commands))
+	for _, argB := range commands {
+		arg := strings.ToLower(string(argB))
+		info, ok := h.commandDescriptions[arg]
+		if !ok {
+			conn.WriteError(fmt.Sprintf("ERR command not found '%s'", arg))
+			continue
+		}
+		writeCommandDocs(conn, arg, info)
+	}
+}
+
+func writeCommandInfo(conn redcon.Conn, name string, info commandInfo) {
+	const commandInfoEntries = 8
+
+	conn.WriteArray(commandInfoEntries)
+
+	conn.WriteString(name)         // 1
+	conn.WriteInt(info.arity)      // 2
+	conn.WriteAny(info.flags)      // 3
+	conn.WriteInt(info.firstKey)   // 4
+	conn.WriteInt(info.lastKey)    // 5
+	conn.WriteInt(info.stepKey)    // 6
+	conn.WriteAny(info.categories) // 7
+	conn.WriteAny(info.tips)       // 8
+}
+
+func writeCommandDocs(conn redcon.Conn, name string, info commandInfo) {
+	const commandDocsEntries = 2
+
+	conn.WriteArray(commandDocsEntries)
+	conn.WriteString(name)   // 1
+	conn.WriteAny(info.tips) // 2
 }
