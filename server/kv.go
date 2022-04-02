@@ -10,6 +10,42 @@ import (
 
 // This file contains implementation of the "kv" commands.
 
+// KEYS [<prefix>]
+// Get keys matching prefix (or all keys if prefix not set).
+func (h *Handler) keys(conn redcon.Conn, cmd redcon.Command) {
+	const keysArgsMaxCount = 2
+
+	if len(cmd.Args) > keysArgsMaxCount {
+		wrongArgs(conn, string(cmd.Args[0]))
+		return
+	}
+
+	var prefix string
+
+	if len(cmd.Args) == 1 {
+		prefix = ""
+	} else {
+		prefix = string(cmd.Args[1])
+	}
+
+	ctx, ok := conn.Context().(*context.Context)
+	if !ok {
+		conn.WriteError("ERR context not set on connection")
+		if err := conn.Close(); err != nil {
+			log.Error("closing connection", err)
+		}
+		return
+	}
+
+	keys, err := ctx.Bucket.List(prefix)
+	if err != nil {
+		conn.WriteError(fmt.Sprintf("ERR getting keys for prefix '%s': %v", prefix, err))
+		return
+	}
+
+	conn.WriteAny(keys)
+}
+
 // GET <key>
 // Get value at key.
 func (h *Handler) get(conn redcon.Conn, cmd redcon.Command) {
@@ -33,10 +69,7 @@ func (h *Handler) get(conn redcon.Conn, cmd redcon.Command) {
 		return
 	}
 
-	ctx.Bucket.Mutex.RLock()
 	val, err := ctx.Bucket.Get(key)
-	ctx.Bucket.Mutex.RUnlock()
-
 	if err != nil {
 		conn.WriteError(fmt.Sprintf("ERR getting item '%s': %v", key, err))
 		return
@@ -47,7 +80,6 @@ func (h *Handler) get(conn redcon.Conn, cmd redcon.Command) {
 
 // SET <key> <value>
 // Set key to contain value.
-//nolint:ifshort // Error shouldn't be checked and responded to inside mutex lock.
 func (h *Handler) set(conn redcon.Conn, cmd redcon.Command) {
 	const setArgsCount = 3
 
@@ -70,11 +102,7 @@ func (h *Handler) set(conn redcon.Conn, cmd redcon.Command) {
 		return
 	}
 
-	ctx.Bucket.Mutex.Lock()
-	err := ctx.Bucket.Set(key, val)
-	ctx.Bucket.Mutex.Unlock()
-
-	if err != nil {
+	if err := ctx.Bucket.Set(key, val); err != nil {
 		conn.WriteError(fmt.Sprintf("ERR setting item '%s': %v", key, err))
 		return
 	}
@@ -108,11 +136,7 @@ func (h *Handler) del(conn redcon.Conn, cmd redcon.Command) {
 
 		// TODO: Add more argument checking.
 
-		ctx.Bucket.Mutex.Lock()
-		err := ctx.Bucket.Delete(key)
-		ctx.Bucket.Mutex.Unlock()
-
-		if err != nil {
+		if err := ctx.Bucket.Delete(key); err != nil {
 			log.Error(fmt.Sprintf("deleting key '%s'", key), err)
 			continue
 		}

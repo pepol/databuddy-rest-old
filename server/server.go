@@ -7,7 +7,6 @@ import (
 	"net"
 	"os"
 	"strings"
-	"sync"
 
 	"github.com/pepol/databuddy/internal/context"
 	"github.com/pepol/databuddy/internal/db"
@@ -28,8 +27,7 @@ type commandInfo struct {
 
 // Handler is the main server connection handler.
 type Handler struct {
-	mutex sync.RWMutex
-	db    *db.Database
+	db *db.Database
 
 	// Replace with sorted map implementation for consistent ordering.
 	commandDescriptions map[string]commandInfo
@@ -42,15 +40,20 @@ type Handler struct {
 }
 
 // NewHandler initialized the server Handler.
-func NewHandler(version, addr, hostname string) *Handler {
+func NewHandler(version, addr, hostname, datadir string) (*Handler, error) {
+	dbs, err := db.OpenDatabase(datadir)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Handler{
 		commandDescriptions: make(map[string]commandInfo),
-		db:                  db.OpenDatabase(),
+		db:                  dbs,
 		Mux:                 redcon.NewServeMux(),
 		addr:                addr,
 		hostname:            hostname,
 		version:             version,
-	}
+	}, nil
 }
 
 // Serve the database over network.
@@ -58,6 +61,7 @@ func NewHandler(version, addr, hostname string) *Handler {
 func Serve(version string) {
 	port := viper.GetInt("port")
 	host := viper.GetString("host")
+	datadir := viper.GetString("datadir")
 
 	addr := net.JoinHostPort(host, fmt.Sprintf("%d", port))
 
@@ -67,7 +71,10 @@ func Serve(version string) {
 		hostname = "localhost"
 	}
 
-	handler := NewHandler(version, addr, hostname)
+	handler, err := NewHandler(version, addr, hostname, datadir)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	// Meta (command-handling) commands.
 	handler.Register("command", handler.command, 1, []string{"server"}, -1, -1, 0, nil, []string{"COMMAND", "show information about all commands"})
@@ -82,10 +89,14 @@ func Serve(version string) {
 	handler.Register("quit", handler.quit, 1, []string{"server"}, -1, -1, 0, nil, []string{"QUIT", "close the connection"})
 
 	// DB management commands.
-	handler.Register("create", handler.create, 2, []string{"database"}, 1, 1, 0, nil, []string{"CREATE <database>", "create database with given name"})
-	handler.Register("use", handler.use, 2, []string{"database"}, 1, 1, 0, nil, []string{"USE <database>", "set database for further queries"})
+	handler.Register("bucket", handler.bucket, 1, []string{"database"}, 1, 1, 0, nil, []string{"BUCKET", "return currently used bucket"})
+	handler.RegisterChild("bucket count", 2, []string{"database"}, -1, -1, 0, nil, []string{"BUCKET COUNT", "return count of all available buckets"})
+	handler.RegisterChild("bucket list", 2, []string{"database"}, -1, -1, 0, nil, []string{"BUCKET LIST", "return list of all available buckets"})
+	handler.RegisterChild("bucket create", 3, []string{"database"}, 2, 2, 0, nil, []string{"BUCKET CREATE <bucket>", "create bucket with given name"})
+	handler.RegisterChild("bucket use", 3, []string{"database"}, 2, 2, 0, nil, []string{"BUCKET USE <bucket>", "set bucket to be used for further queries"})
 
 	// KV commands.
+	handler.Register("keys", handler.keys, -1, []string{"read"}, 1, 1, 0, nil, []string{"LIST [<prefix>]", "return array of all keys matching prefix"})
 	handler.Register("get", handler.get, 2, []string{"read"}, 1, 1, 0, nil, []string{"GET <key>", "return value stored under given key"})
 	handler.Register("set", handler.set, 3, []string{"write"}, 1, 1, 0, nil, []string{"SET <key> <value>", "store value under key, returns 'OK' if successful, 'ERR' otherwise"})
 	handler.Register("del", handler.del, -2, []string{"write"}, 1, -1, 1, nil, []string{"DEL <key> [<key> ...]", "delete values stored under key(s), returns number of deleted items"})
