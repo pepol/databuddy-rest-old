@@ -156,11 +156,7 @@ func (b *Bucket) Delete(key string) error {
 	defer b.mutex.Unlock()
 
 	return b.db.Update(func(txn *badger.Txn) error {
-		if err := txn.Delete([]byte(key)); err != nil {
-			return err
-		}
-
-		return txn.Commit()
+		return txn.Delete([]byte(key))
 	})
 }
 
