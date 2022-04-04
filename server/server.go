@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	"github.com/pepol/databuddy/internal/context"
 	"github.com/pepol/databuddy/internal/db"
@@ -27,12 +29,14 @@ type commandInfo struct {
 
 // Handler is the main server connection handler.
 type Handler struct {
-	db *db.Database
+	accepting bool
+	db        *db.Database
 
 	// Replace with sorted map implementation for consistent ordering.
 	commandDescriptions map[string]commandInfo
 
-	Mux *redcon.ServeMux
+	Mux    *redcon.ServeMux
+	Server *redcon.Server
 
 	addr     string
 	hostname string
@@ -47,6 +51,7 @@ func NewHandler(version, addr, hostname, datadir string) (*Handler, error) {
 	}
 
 	return &Handler{
+		accepting:           true,
 		commandDescriptions: make(map[string]commandInfo),
 		db:                  dbs,
 		Mux:                 redcon.NewServeMux(),
@@ -57,7 +62,6 @@ func NewHandler(version, addr, hostname, datadir string) (*Handler, error) {
 }
 
 // Serve the database over network.
-//nolint:gomnd // Magic numbers in command registration calls are not magic.
 func Serve(version string) {
 	port := viper.GetInt("port")
 	host := viper.GetString("host")
@@ -77,42 +81,43 @@ func Serve(version string) {
 	}
 
 	// Meta (command-handling) commands.
-	handler.Register("command", handler.command, 1, []string{"server"}, -1, -1, 0, nil, []string{"COMMAND", "show information about all commands"})
-	handler.RegisterChild("command count", 2, []string{"server"}, -1, -1, 0, nil, []string{"COMMAND COUNT", "return count of all available commands"})
-	handler.RegisterChild("command list", 2, []string{"server"}, -1, -1, 0, nil, []string{"COMMAND LIST", "return list of all available commands"})
-	handler.RegisterChild("command info", -2, []string{"server"}, 2, -1, 1, nil, []string{"COMMAND INFO [<command> ...]", "show system information about given command(s)"})
-	handler.RegisterChild("command docs", -2, []string{"server"}, 2, -1, 1, nil, []string{"COMMAND DOCS [<command> ...]", "show documentation about given command(s)"})
+	registerMeta(handler)
 
 	// General information commands.
-	handler.Register("info", handler.info, 1, []string{"server"}, -1, -1, 0, nil, []string{"INFO", "return information about current node"})
-	handler.Register("ping", handler.ping, 1, []string{"general"}, -1, -1, 0, nil, []string{"PING", "respond with 'PONG'"})
-	handler.Register("quit", handler.quit, 1, []string{"server"}, -1, -1, 0, nil, []string{"QUIT", "close the connection"})
+	registerGeneral(handler)
 
 	// DB management commands.
-	handler.Register("bucket", handler.bucket, 1, []string{"database"}, 1, 1, 0, nil, []string{"BUCKET", "return currently used bucket"})
-	handler.RegisterChild("bucket count", 2, []string{"database"}, -1, -1, 0, nil, []string{"BUCKET COUNT", "return count of all available buckets"})
-	handler.RegisterChild("bucket list", -2, []string{"database"}, 2, -1, 1, nil, []string{"BUCKET LIST [<prefix>]", "return list of all available buckets matching prefix (or all if prefix is empty)"})
-	handler.RegisterChild("bucket create", 3, []string{"database"}, 2, 2, 0, nil, []string{"BUCKET CREATE <bucket>", "create bucket with given name"})
-	handler.RegisterChild("bucket use", 3, []string{"database"}, 2, 2, 0, nil, []string{"BUCKET USE <bucket>", "set bucket to be used for further queries"})
-	handler.RegisterChild("bucket drop", -3, []string{"database"}, 2, -1, 1, nil, []string{"BUCKET DROP <bucket> [<bucket> ...]", "delete given bucket(s), removing all data"})
+	registerDatabaseManagement(handler)
 
 	// KV commands.
-	handler.Register("keys", handler.keys, -1, []string{"read"}, 1, 1, 0, nil, []string{"LIST [<prefix>]", "return array of all keys matching prefix"})
-	handler.Register("get", handler.get, 2, []string{"read"}, 1, 1, 0, nil, []string{"GET <key>", "return value stored under given key"})
-	handler.Register("set", handler.set, 3, []string{"write"}, 1, 1, 0, nil, []string{"SET <key> <value>", "store value under key, returns 'OK' if successful, 'ERR' otherwise"})
-	handler.Register("del", handler.del, -2, []string{"write"}, 1, -1, 1, nil, []string{"DEL <key> [<key> ...]", "delete values stored under key(s), returns number of deleted items"})
+	registerKV(handler)
 
 	log.Info(fmt.Sprintf("Starting DataBuddy %s RESP server on %s", version, addr))
 
-	err = redcon.ListenAndServe(
+	sigs := make(chan os.Signal, 1)
+	done := make(chan bool, 1)
+
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
+	server := redcon.NewServer(
 		addr,
 		handler.Mux.ServeRESP,
 		handler.acceptConnection,
 		func(conn redcon.Conn, err error) {},
 	)
+	handler.Server = server
+
+	go func() {
+		<-sigs
+		handler.Stop(done)
+	}()
+
+	err = server.ListenAndServe()
 	if err != nil {
 		log.Error("serving resp", err)
 	}
+	<-done
+	log.Info("quitting")
 }
 
 // Register command into RESP handler with given handler and usage information
@@ -167,8 +172,34 @@ func (h *Handler) RegisterChild(
 	return h
 }
 
+// Stop handling connection and close database.
+func (h *Handler) Stop(done chan bool) {
+	h.accepting = false
+
+	errored := false
+
+	if err := h.Server.Close(); err != nil {
+		log.Error("stopping server", err)
+		errored = true
+	}
+
+	if err := h.db.Close(); err != nil {
+		log.Error("closing database", err)
+		errored = true
+	}
+
+	if errored {
+		os.Exit(1)
+	}
+	done <- true
+}
+
 // Initialize connection context on connection accept.
 func (h *Handler) acceptConnection(conn redcon.Conn) bool {
+	if !h.accepting {
+		return false
+	}
+
 	bucket, err := h.db.Get(h.db.DefaultBucket)
 	if err != nil {
 		conn.WriteError(fmt.Sprintf("ERR initializing connection: %v", err))
@@ -265,6 +296,15 @@ func (h *Handler) commandDocs(conn redcon.Conn, commands [][]byte) {
 		}
 		writeCommandDocs(conn, arg, info)
 	}
+}
+
+//nolint:gomnd // Magic numbers in command registration calls are not magic.
+func registerMeta(handler *Handler) {
+	handler.Register("command", handler.command, 1, []string{"server"}, -1, -1, 0, nil, []string{"COMMAND", "show information about all commands"})
+	handler.RegisterChild("command count", 2, []string{"server"}, -1, -1, 0, nil, []string{"COMMAND COUNT", "return count of all available commands"})
+	handler.RegisterChild("command list", 2, []string{"server"}, -1, -1, 0, nil, []string{"COMMAND LIST", "return list of all available commands"})
+	handler.RegisterChild("command info", -2, []string{"server"}, 2, -1, 1, nil, []string{"COMMAND INFO [<command> ...]", "show system information about given command(s)"})
+	handler.RegisterChild("command docs", -2, []string{"server"}, 2, -1, 1, nil, []string{"COMMAND DOCS [<command> ...]", "show documentation about given command(s)"})
 }
 
 func writeCommandInfo(conn redcon.Conn, name string, info commandInfo) {

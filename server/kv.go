@@ -145,3 +145,11 @@ func (h *Handler) del(conn redcon.Conn, cmd redcon.Command) {
 
 	conn.WriteInt(deleted)
 }
+
+//nolint:gomnd // Magic numbers in command registration calls are not magic.
+func registerKV(handler *Handler) {
+	handler.Register("keys", handler.keys, -1, []string{"read"}, 1, 1, 0, nil, []string{"LIST [<prefix>]", "return array of all keys matching prefix"})
+	handler.Register("get", handler.get, 2, []string{"read"}, 1, 1, 0, nil, []string{"GET <key>", "return value stored under given key"})
+	handler.Register("set", handler.set, 3, []string{"write"}, 1, 1, 0, nil, []string{"SET <key> <value>", "store value under key, returns 'OK' if successful, 'ERR' otherwise"})
+	handler.Register("del", handler.del, -2, []string{"write"}, 1, -1, 1, nil, []string{"DEL <key> [<key> ...]", "delete values stored under key(s), returns number of deleted items"})
+}

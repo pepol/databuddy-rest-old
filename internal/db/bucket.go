@@ -166,6 +166,9 @@ func (b *Bucket) Close() error {
 		return nil // Database isn't even opened.
 	}
 
+	b.mutex.Lock()
+	defer b.mutex.Unlock()
+
 	return b.db.Close()
 }
 

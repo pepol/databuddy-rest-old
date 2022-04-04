@@ -171,7 +171,23 @@ func (db *Database) Drop(name string) error {
 		return err
 	}
 
+	bucket, ok := db.buckets[name]
 	delete(db.buckets, name)
 
-	return nil
+	if !ok {
+		return nil
+	}
+
+	return bucket.Close()
+}
+
+// Close the database.
+func (db *Database) Close() error {
+	for _, bucket := range db.buckets {
+		if err := bucket.Close(); err != nil {
+			log.Error(fmt.Sprintf("closing bucket '%s'", bucket.Name), err)
+		}
+	}
+
+	return db.system.Close()
 }

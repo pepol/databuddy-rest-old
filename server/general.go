@@ -35,3 +35,9 @@ func (h *Handler) quit(conn redcon.Conn, cmd redcon.Command) {
 		log.Error("closing connection", err)
 	}
 }
+
+func registerGeneral(handler *Handler) {
+	handler.Register("info", handler.info, 1, []string{"server"}, -1, -1, 0, nil, []string{"INFO", "return information about current node"})
+	handler.Register("ping", handler.ping, 1, []string{"general"}, -1, -1, 0, nil, []string{"PING", "respond with 'PONG'"})
+	handler.Register("quit", handler.quit, 1, []string{"server"}, -1, -1, 0, nil, []string{"QUIT", "close the connection"})
+}

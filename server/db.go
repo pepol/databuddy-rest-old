@@ -158,3 +158,13 @@ func (h *Handler) bucketDrop(conn redcon.Conn, args [][]byte) {
 
 	conn.WriteInt(dropped)
 }
+
+//nolint:gomnd // Magic numbers in command registration calls are not magic.
+func registerDatabaseManagement(handler *Handler) {
+	handler.Register("bucket", handler.bucket, 1, []string{"database"}, 1, 1, 0, nil, []string{"BUCKET", "return currently used bucket"})
+	handler.RegisterChild("bucket count", 2, []string{"database"}, -1, -1, 0, nil, []string{"BUCKET COUNT", "return count of all available buckets"})
+	handler.RegisterChild("bucket list", -2, []string{"database"}, 2, -1, 1, nil, []string{"BUCKET LIST [<prefix>]", "return list of all available buckets matching prefix (or all if prefix is empty)"})
+	handler.RegisterChild("bucket create", 3, []string{"database"}, 2, 2, 0, nil, []string{"BUCKET CREATE <bucket>", "create bucket with given name"})
+	handler.RegisterChild("bucket use", 3, []string{"database"}, 2, 2, 0, nil, []string{"BUCKET USE <bucket>", "set bucket to be used for further queries"})
+	handler.RegisterChild("bucket drop", -3, []string{"database"}, 2, -1, 1, nil, []string{"BUCKET DROP <bucket> [<bucket> ...]", "delete given bucket(s), removing all data"})
+}
