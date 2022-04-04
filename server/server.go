@@ -94,6 +94,7 @@ func Serve(version string) {
 	handler.RegisterChild("bucket list", -2, []string{"database"}, 2, -1, 1, nil, []string{"BUCKET LIST [<prefix>]", "return list of all available buckets matching prefix (or all if prefix is empty)"})
 	handler.RegisterChild("bucket create", 3, []string{"database"}, 2, 2, 0, nil, []string{"BUCKET CREATE <bucket>", "create bucket with given name"})
 	handler.RegisterChild("bucket use", 3, []string{"database"}, 2, 2, 0, nil, []string{"BUCKET USE <bucket>", "set bucket to be used for further queries"})
+	handler.RegisterChild("bucket drop", -3, []string{"database"}, 2, -1, 1, nil, []string{"BUCKET DROP <bucket> [<bucket> ...]", "delete given bucket(s), removing all data"})
 
 	// KV commands.
 	handler.Register("keys", handler.keys, -1, []string{"read"}, 1, 1, 0, nil, []string{"LIST [<prefix>]", "return array of all keys matching prefix"})
@@ -168,7 +169,7 @@ func (h *Handler) RegisterChild(
 
 // Initialize connection context on connection accept.
 func (h *Handler) acceptConnection(conn redcon.Conn) bool {
-	bucket, err := h.db.Get(db.DefaultBucketName)
+	bucket, err := h.db.Get(h.db.DefaultBucket)
 	if err != nil {
 		conn.WriteError(fmt.Sprintf("ERR initializing connection: %v", err))
 		return false

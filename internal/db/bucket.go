@@ -164,6 +164,15 @@ func (b *Bucket) Delete(key string) error {
 	})
 }
 
+// Close the underlying BadgerDB.
+func (b *Bucket) Close() error {
+	if b.db == nil {
+		return nil // Database isn't even opened.
+	}
+
+	return b.db.Close()
+}
+
 func isValidBucketName(name string) bool {
 	rfc1123LabelRegex := regexp.MustCompile("^" + rfc1123LabelRegexFmt + "$")
 

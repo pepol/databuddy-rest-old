@@ -2,7 +2,6 @@ package db
 
 import (
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 
@@ -11,16 +10,56 @@ import (
 
 // Database is the implementation of local storage layer.
 type Database struct {
-	datadir string
-	system  *Bucket
-	buckets map[string]*Bucket
+	datadir       string
+	system        *Bucket
+	buckets       map[string]*Bucket
+	DefaultBucket string
 }
 
 const (
 	bucketKeyPrefix    = "bucket:"
 	datadirPermissions = 0o700
+	defaultBucketKey   = "defaults:bucket"
+	initKey            = "system:initialized"
 	systemBucketName   = "_system"
 )
+
+// InitDatabase creates the local database for use.
+func InitDatabase(datadir string, bucketName string) error {
+	if err := checkDataDirectory(datadir); err != nil {
+		return err
+	}
+
+	empty, err := isEmpty(datadir)
+	if err != nil {
+		return err
+	}
+	if !empty {
+		return fmt.Errorf("directory '%s' not empty", datadir)
+	}
+
+	systemBucket, err := openBucketNoCheck(systemBucketName, datadir)
+	if err != nil {
+		return err
+	}
+	log.Info("created system bucket")
+
+	if err := systemBucket.Set(bucketKeyPrefix+bucketName, []byte{1}); err != nil {
+		return err
+	}
+	log.Info(fmt.Sprintf("created bucket '%s'", bucketName))
+
+	if err := systemBucket.Set(defaultBucketKey, []byte(bucketName)); err != nil {
+		return err
+	}
+	log.Info(fmt.Sprintf("set bucket '%s' as default", bucketName))
+
+	if err := systemBucket.Set(initKey, []byte{1}); err != nil {
+		return err
+	}
+
+	return systemBucket.Close()
+}
 
 // OpenDatabase opens the local database for use.
 func OpenDatabase(datadir string) (*Database, error) {
@@ -33,6 +72,16 @@ func OpenDatabase(datadir string) (*Database, error) {
 		return nil, err
 	}
 
+	_, err = systemBucket.Get(initKey)
+	if err != nil {
+		return nil, fmt.Errorf("validating db: %v", err)
+	}
+
+	defaultBucket, err := systemBucket.Get(defaultBucketKey)
+	if err != nil {
+		return nil, fmt.Errorf("getting default bucket name: %v", err)
+	}
+
 	buckets := make(map[string]*Bucket)
 
 	keys, err := systemBucket.List(bucketKeyPrefix)
@@ -41,16 +90,6 @@ func OpenDatabase(datadir string) (*Database, error) {
 	}
 
 	log.Info(fmt.Sprintf("buckets (DB): %v", keys))
-
-	// TODO: Move this into "init database" subcommand.
-	// Create default bucket if no bucket exists.
-	if len(keys) == 0 {
-		if err := systemBucket.Set(bucketKeyPrefix+DefaultBucketName, []byte{1}); err != nil {
-			return nil, err
-		}
-		keys = append(keys, bucketKeyPrefix+DefaultBucketName)
-		log.Info(fmt.Sprintf("created default bucket '%s'", DefaultBucketName))
-	}
 
 	for _, key := range keys {
 		if !strings.HasPrefix(key, bucketKeyPrefix) {
@@ -70,9 +109,10 @@ func OpenDatabase(datadir string) (*Database, error) {
 	}
 
 	return &Database{
-		datadir: datadir,
-		system:  systemBucket,
-		buckets: buckets,
+		datadir:       datadir,
+		system:        systemBucket,
+		buckets:       buckets,
+		DefaultBucket: string(defaultBucket),
 	}, nil
 }
 
@@ -121,26 +161,17 @@ func (db *Database) Count() int {
 	return len(db.buckets)
 }
 
-func checkDataDirectory(datadir string) error {
-	fi, err := os.Stat(datadir)
-
-	if os.IsNotExist(err) {
-		if err = os.Mkdir(datadir, datadirPermissions); err != nil {
-			return err
-		}
-		fi, err = os.Stat(datadir)
+// Drop given bucket.
+func (db *Database) Drop(name string) error {
+	if name == db.DefaultBucket {
+		return fmt.Errorf("bucket '%s' is marked as default and cannot be deleted", name)
 	}
-	if err != nil {
+
+	if err := db.system.Delete(bucketKeyPrefix + name); err != nil {
 		return err
 	}
 
-	if !fi.IsDir() {
-		return fmt.Errorf("'%s' exists and is not a directory", datadir)
-	}
-
-	if fi.Mode().Perm() != datadirPermissions {
-		return fmt.Errorf("permissions for '%s' are incorrect (%o != %o)", datadir, fi.Mode(), datadirPermissions)
-	}
+	delete(db.buckets, name)
 
 	return nil
 }

@@ -39,6 +39,8 @@ func (h *Handler) bucket(conn redcon.Conn, cmd redcon.Command) {
 		h.bucketCreate(conn, cmd.Args[2:])
 	case "use":
 		h.bucketUse(conn, cmd.Args[2:])
+	case "drop":
+		h.bucketDrop(conn, cmd.Args[2:])
 	default:
 		conn.WriteError(fmt.Sprintf("ERR unknown command '%s %s'", string(cmd.Args[0]), subcommand))
 	}
@@ -120,4 +122,39 @@ func (h *Handler) bucketUse(conn redcon.Conn, args [][]byte) {
 	ctx.Bucket = bucket
 
 	conn.WriteString("OK")
+}
+
+// BUCKET DROP <bucket> [<bucket> ...]
+// Remove given buckets, including all data.
+func (h *Handler) bucketDrop(conn redcon.Conn, args [][]byte) {
+	if len(args) == 0 {
+		wrongArgs(conn, "BUCKET DROP")
+		return
+	}
+
+	ctx, ok := conn.Context().(*context.Context)
+	if !ok {
+		conn.WriteError("ERR context not set on connection")
+		return
+	}
+
+	dropped := 0
+
+	for _, arg := range args {
+		name := string(arg)
+
+		// TODO: Improve check with all currently connected users.
+		if name == ctx.Bucket.Name {
+			log.Warn(fmt.Sprintf("not dropping bucket '%s' as its used by current user", name))
+			continue
+		}
+
+		if err := h.db.Drop(name); err != nil {
+			log.Error(fmt.Sprintf("dropping bucket '%s'", name), err)
+			continue
+		}
+		dropped++
+	}
+
+	conn.WriteInt(dropped)
 }
