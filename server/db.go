@@ -34,7 +34,7 @@ func (h *Handler) bucket(conn redcon.Conn, cmd redcon.Command) {
 	case "count":
 		h.bucketCount(conn)
 	case "list":
-		h.bucketList(conn)
+		h.bucketList(conn, cmd.Args[2:])
 	case "create":
 		h.bucketCreate(conn, cmd.Args[2:])
 	case "use":
@@ -52,8 +52,20 @@ func (h *Handler) bucketCount(conn redcon.Conn) {
 
 // BUCKET LIST
 // Return array of all buckets available on server.
-func (h *Handler) bucketList(conn redcon.Conn) {
-	conn.WriteAny(h.db.List())
+func (h *Handler) bucketList(conn redcon.Conn, args [][]byte) {
+	var prefix string
+
+	switch len(args) {
+	case 0:
+		prefix = ""
+	case 1:
+		prefix = strings.ToLower(string(args[0]))
+	default:
+		wrongArgs(conn, "BUCKET LIST")
+		return
+	}
+
+	conn.WriteAny(h.db.List(prefix))
 }
 
 // BUCKET CREATE <bucket>

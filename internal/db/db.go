@@ -102,13 +102,13 @@ func (db *Database) Get(name string) (*Bucket, error) {
 }
 
 // List all available buckets (names only).
-func (db *Database) List() []string {
-	names := make([]string, len(db.buckets))
+func (db *Database) List(prefix string) []string {
+	names := make([]string, 0, len(db.buckets))
 
-	i := 0
 	for name := range db.buckets {
-		names[i] = name
-		i++
+		if strings.HasPrefix(name, prefix) {
+			names = append(names, name)
+		}
 	}
 
 	sort.Strings(names)
