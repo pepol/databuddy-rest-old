@@ -10,12 +10,15 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/hashicorp/serf/serf"
 	"github.com/pepol/databuddy/internal/context"
 	"github.com/pepol/databuddy/internal/db"
 	"github.com/pepol/databuddy/internal/log"
 	"github.com/spf13/viper"
 	"github.com/tidwall/redcon"
 )
+
+const serfEventsBufSize = 16
 
 type commandInfo struct {
 	arity      int
@@ -29,8 +32,12 @@ type commandInfo struct {
 
 // Handler is the main server connection handler.
 type Handler struct {
+	id        string
 	accepting bool
 	db        *db.Database
+
+	serf     *serf.Serf
+	eventsCh chan serf.Event
 
 	// Replace with sorted map implementation for consistent ordering.
 	commandDescriptions map[string]commandInfo
@@ -44,7 +51,7 @@ type Handler struct {
 }
 
 // NewHandler initialized the server Handler.
-func NewHandler(version, addr, hostname, datadir string) (*Handler, error) {
+func NewHandler(version, addr, hostname, datadir string, s *serf.Serf, eventsCh chan serf.Event) (*Handler, error) {
 	dbs, err := db.OpenDatabase(datadir)
 	if err != nil {
 		return nil, err
@@ -58,14 +65,21 @@ func NewHandler(version, addr, hostname, datadir string) (*Handler, error) {
 		addr:                addr,
 		hostname:            hostname,
 		version:             version,
+		serf:                s,
+		eventsCh:            eventsCh,
 	}, nil
 }
 
 // Serve the database over network.
+//nolint:funlen // Only setup boilerplate in this function, no logic.
 func Serve(version string) {
+	logger := setupLogging()
+
 	port := viper.GetInt("port")
 	host := viper.GetString("host")
 	datadir := viper.GetString("datadir")
+	join := viper.GetStringSlice("join")
+	serfPort := viper.GetInt("serfport")
 
 	addr := net.JoinHostPort(host, fmt.Sprintf("%d", port))
 
@@ -75,7 +89,25 @@ func Serve(version string) {
 		hostname = "localhost"
 	}
 
-	handler, err := NewHandler(version, addr, hostname, datadir)
+	serfEvents := make(chan serf.Event, serfEventsBufSize)
+
+	hostID := getHostID(hostname, addr)
+
+	serfConfig := getSerfConfig(host, serfPort, hostID, logger, serfEvents)
+
+	s, err := serf.Create(serfConfig)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if len(join) > 0 {
+		_, err = s.Join(join, false)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	handler, err := NewHandler(version, addr, hostname, datadir, s, serfEvents)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -91,6 +123,9 @@ func Serve(version string) {
 
 	// KV commands.
 	registerKV(handler)
+
+	// Cluster commands.
+	registerCluster(handler)
 
 	log.Info(fmt.Sprintf("Starting DataBuddy %s RESP server on %s", version, addr))
 
@@ -112,11 +147,16 @@ func Serve(version string) {
 		handler.Stop(done)
 	}()
 
+	go handler.handleSerf()
+
 	err = server.ListenAndServe()
 	if err != nil {
 		log.Error("serving resp", err)
 	}
 	<-done
+	if err := handler.serf.Shutdown(); err != nil {
+		log.Error("shutting down serf", err)
+	}
 	log.Info("quitting")
 }
 
@@ -183,6 +223,11 @@ func (h *Handler) Stop(done chan bool) {
 		errored = true
 	}
 
+	if err := h.serf.Leave(); err != nil {
+		log.Error("stopping serf", err)
+		errored = true
+	}
+
 	if err := h.db.Close(); err != nil {
 		log.Error("closing database", err)
 		errored = true
@@ -192,6 +237,32 @@ func (h *Handler) Stop(done chan bool) {
 		os.Exit(1)
 	}
 	done <- true
+}
+
+// Handle Serf events.
+func (h *Handler) handleSerf() {
+	for {
+		select {
+		case ev := <-h.eventsCh:
+			h.handleSerfEvent(ev)
+		}
+	}
+}
+
+func (h *Handler) handleSerfEvent(event serf.Event) {
+	switch ev := event.(type) {
+	case serf.MemberEvent:
+		log.Info("%s: %v", ev.EventType().String(), ev.Members)
+	case serf.UserEvent:
+		log.Info("User: %s %v", ev.Name, ev.Payload)
+	case *serf.Query:
+		log.Info("Query (due at %v): %s %v", ev.Deadline(), ev.Name, ev.Payload)
+		if err := ev.Respond(nil); err != nil {
+			log.Error("responding to query", err)
+		}
+	default:
+		log.Warn("unknown type: %s", ev.EventType().String())
+	}
 }
 
 // Initialize connection context on connection accept.

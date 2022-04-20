@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/dgraph-io/badger/v3"
+	"github.com/pepol/databuddy/internal/log"
 )
 
 // DefaultBucketName contains the name of bucket created on database initialization.
@@ -44,9 +45,12 @@ func openBucketNoCheck(name, basePath string) (*Bucket, error) {
 		return nil, err
 	}
 
+	logger := log.GetBadgerLogger()
+
 	opt := badger.DefaultOptions(path).
 		WithCompactL0OnClose(true).
-		WithMetricsEnabled(true)
+		WithMetricsEnabled(true).
+		WithLogger(logger)
 
 	db, err := badger.Open(opt)
 	if err != nil {

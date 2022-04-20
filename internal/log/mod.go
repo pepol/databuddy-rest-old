@@ -1,31 +1,82 @@
 // Package log implements wrapper around logging libraries.
 package log
 
-import "log"
+import (
+	stdlog "log"
+	"os"
 
-// Info logs an informational log message.
-func Info(message string) {
-	logPrefixf("INFO", message)
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
+)
+
+// Logger configures zerolog logger correctly, including stdlib log override.
+func Logger(level zerolog.Level, devel bool) zerolog.Logger {
+	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
+
+	var l zerolog.Logger
+
+	if devel {
+		l = zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout, NoColor: false})
+	} else {
+		l = log.Logger
+	}
+
+	stdlog.SetFlags(0)
+	stdlog.SetOutput(l)
+
+	zerolog.SetGlobalLevel(level)
+	return l
 }
 
-// Warn logs a warning log message.
-func Warn(message string) {
-	logPrefixf("WARN", message)
+// Debug message wrapper.
+func Debug(format string, args ...any) {
+	log.Debug().Msgf(format, args...)
 }
 
-// Error logs an error message and the exception thrown.
+// Info message wrapper.
+func Info(format string, args ...any) {
+	log.Info().Msgf(format, args...)
+}
+
+// Warn message wrapper.
+func Warn(format string, args ...any) {
+	log.Warn().Msgf(format, args...)
+}
+
+// Error message wrapper.
 func Error(message string, err error) {
-	logPrefixf("ERROR", "%s: %v", message, err)
+	log.Error().Msgf("%s: %v", message, err)
 }
 
-func logPrefixf(prefix string, message string, v ...any) {
-	oldPrefix := log.Prefix()
-	log.SetPrefix(prefix + " ")
-	log.Printf(message, v...)
-	log.SetPrefix(oldPrefix)
+// Fatal error message wrapper.
+func Fatal(err error) {
+	stdlog.Fatal(err)
 }
 
-// Fatal causes the program to stop with error message.
-func Fatal(err interface{}) {
-	log.Fatal(err)
+// BadgerLogger is a wrapper for Badger v3 to accept this logging library.
+type BadgerLogger struct{}
+
+// GetBadgerLogger returns BadgerLogger for this library.
+func GetBadgerLogger() *BadgerLogger {
+	return &BadgerLogger{}
+}
+
+// Debugf logs a debug message.
+func (l *BadgerLogger) Debugf(format string, args ...any) {
+	Debug(format, args...)
+}
+
+// Infof logs an informational message.
+func (l *BadgerLogger) Infof(format string, args ...any) {
+	Info(format, args...)
+}
+
+// Warningf logs a warning message.
+func (l *BadgerLogger) Warningf(format string, args ...any) {
+	Warn(format, args...)
+}
+
+// Errorf logs an error message.
+func (l *BadgerLogger) Errorf(format string, args ...any) {
+	log.Error().Msgf(format, args...)
 }

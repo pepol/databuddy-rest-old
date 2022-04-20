@@ -12,10 +12,12 @@ import (
 
 const (
 	configEnvPrefix = "APP"
+	defaultDevel    = false
 	defaultDataDir  = "/var/lib/databuddy"
 	defaultPort     = 6543
 	defaultHost     = "127.0.0.1"
-	defaultLogLevel = "debug"
+	defaultLogLevel = "info"
+	defaultSerfPort = 6544
 )
 
 var rootCmd = &cobra.Command{
@@ -30,10 +32,13 @@ var rootCmd = &cobra.Command{
 var version = "latest"
 
 func init() {
+	viper.SetDefault("devel", defaultDevel)
 	viper.SetDefault("datadir", defaultDataDir)
 	viper.SetDefault("port", defaultPort)
 	viper.SetDefault("host", defaultHost)
 	viper.SetDefault("loglevel", defaultLogLevel)
+	viper.SetDefault("join", []string{})
+	viper.SetDefault("serfport", defaultSerfPort)
 
 	// Parse environment variables.
 	viper.SetEnvPrefix(configEnvPrefix)
@@ -61,6 +66,21 @@ func init() {
 	// Observability settings.
 	rootCmd.Flags().String("loglevel", defaultLogLevel, "level of logs to display")
 	if err := viper.BindPFlag("loglevel", rootCmd.Flags().Lookup("loglevel")); err != nil {
+		log.Fatal(err)
+	}
+	rootCmd.Flags().BoolP("devel", "D", defaultDevel, "enable development mode")
+	if err := viper.BindPFlag("devel", rootCmd.Flags().Lookup("devel")); err != nil {
+		log.Fatal(err)
+	}
+
+	// Serf settings.
+	rootCmd.Flags().Int("serfport", defaultSerfPort, "port which Serf/Gossip traffic will use")
+	if err := viper.BindPFlag("serfport", rootCmd.Flags().Lookup("serfport")); err != nil {
+		log.Fatal(err)
+	}
+
+	rootCmd.Flags().StringSliceP("join", "j", []string{}, "comma-separated list of connection strings (address and port) to connect to for cluster bootstrap")
+	if err := viper.BindPFlag("join", rootCmd.Flags().Lookup("join")); err != nil {
 		log.Fatal(err)
 	}
 }
