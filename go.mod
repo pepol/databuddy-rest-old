@@ -9,7 +9,7 @@ require (
 	github.com/rs/zerolog v1.26.1
 	github.com/spf13/cobra v1.4.0
 	github.com/spf13/viper v1.3.2
-	github.com/tidwall/redcon v1.4.4
+	github.com/tidwall/redcon v1.4.5
 )
 
 require (
